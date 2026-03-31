@@ -7,6 +7,14 @@ import regionmask
 import glob
 import xarray as xr
 import hvplot.xarray  # noqa: F401
+import matplotlib as mpl
+
+
+hvplot.extension(phelpers.backend_hv)
+
+fig_kwargs = dict(
+    fig_inches=(phelpers.width_default, phelpers.height_wide), **phelpers.global_kwargs
+)
 
 ####################
 # read in ERA
@@ -51,8 +59,15 @@ era_eg = era_masked["t2m_x"].sel(lon=eg_lon, lat=eg_lat, method="nearest")
 # era_sudan.sel(time=slice("1964", "1964")).hvplot(title="see the big drop in late july 1964")
 fig_qc = (
     era_eg.sel(time=slice("1964", "1965"))
-    .hvplot(title="6.5N, 30.5E", color="black", xlabel="", ylabel="Tx (K)")
-    .opts(frame_height=phelpers.fheight_wide, xrotation=45, **phelpers.global_kwargs)
+    .hvplot(
+        title="6.5N, 30.5E",
+        color="black",
+        xlabel="",
+        ylabel="Tx (K)",
+        xformatter=mpl.dates.DateFormatter("%Y-%b"),
+        xticks=10,
+    )
+    .opts(xrotation=45, **fig_kwargs)
 )
 
 # hvplot.save(fig_qc, phelpers.fig_dir / "supplemental" / "fig_qc.png")

@@ -26,7 +26,7 @@ fig_kwargs = dict(
     **phelpers.global_kwargs,
 )
 
-layout_kwargs = dict(sublabel_format="", tight=True, tight_padding=8)
+layout_kwargs = dict(sublabel_format="", tight=True, tight_padding=(1, 17))
 
 
 hw_obs = xr.open_dataset(
@@ -53,13 +53,7 @@ hw_synth = xr.open_dataset(
 ###########################################################
 
 
-def get_delta_fig(
-    mean_diff_ds,
-    label_source,
-    label_summer,
-    ref_years,
-    new_years,
-):
+def get_delta_fig(mean_diff_ds, cmap_hwf_hook, cmap_hwd_hook, cmap_sumheat_hook):
     """
     Creates figures looking at changes in difference in mean heatwave characteristics over two time period
     mean_diff_ds is an xarray dataset, the output of hdp.metric.compute_group_metrics, manipulated to represent the difference in metrics across two time periods
@@ -67,44 +61,57 @@ def get_delta_fig(
     label_summer is a string (intended either "jja" or "doy") describing how summer was defined in mean_diff_ds
     """
     hwf_delta = mean_diff_ds["t2m_x.t2m_x_threshold.HWF"]
-    cmap_hwf = phelpers.cbar_helper_hv(0, 15, cmap=phelpers.cmap_red)
-    deltamap_hwf = hwf_delta.hvplot(
+    horizontal_cbar_hwf = phelpers.horizontal_cbar_hv(
+        clabel=r"$\Delta$ Frequency (days)"
+    )
+
+    deltamap_hwf = hwf_delta.hvplot.quadmesh(
         projection=ccrs.PlateCarree(),
         coastline=True,
         # title=f"delta in heatwave frequency ({label_summer})\nmean({label_source} {flags.new_years[0]}:{flags.new_years[1]}) - mean(obs {flags.ref_years[0]}:{flags.ref_years[1]})",
-        title="Change in Frequency",
-        clabel="days",
-        xlabel="",
-        ylabel="",
-    ).opts(ylim=(-59, None), hooks=[cmap_hwf])
+        title="",
+    ).opts(
+        hv.opts.QuadMesh(
+            colorbar=False,
+            ylim=(-59, None),
+            hooks=[cmap_hwf_hook, horizontal_cbar_hwf],
+            **fig_kwargs,
+        )
+    )
 
     # delta in hwd
     hwd_delta = mean_diff_ds["t2m_x.t2m_x_threshold.HWD"]
-    cmap_hwd = phelpers.cbar_helper_hv(-6, 6, cmap=phelpers.cmap_rdbu)
-
-    deltamap_hwd = hwd_delta.hvplot(
+    horizontal_cbar_hwd = phelpers.horizontal_cbar_hv(
+        clabel=r"$\Delta$ Duration (days)"
+    )
+    deltamap_hwd = hwd_delta.hvplot.quadmesh(
         projection=ccrs.PlateCarree(),
         coastline=True,
-        # title=f"delta in heatwave duration ({label_summer})\nmean({label_source} {flags.new_years[0]}:{flags.new_years[1]}) - mean(obs {flags.ref_years[0]}:{flags.ref_years[1]})",
-        title="Change in Duration",
-        clabel="days",
-        xlabel="",
-        ylabel="",
-    ).opts(ylim=(-59, None), hooks=[cmap_hwd])
+        title="",
+    ).opts(
+        hv.opts.QuadMesh(
+            colorbar=False,
+            ylim=(-59, None),
+            hooks=[cmap_hwd_hook, horizontal_cbar_hwd],
+            **fig_kwargs,
+        )
+    )
 
     # delta in heatsum
     heatsum_delta = mean_diff_ds["t2m_x.t2m_x_threshold.sumHeat"]
-    cmap_heatsum = phelpers.cbar_helper_hv(0, 25, cmap=phelpers.cmap_red)
-
-    deltamap_heatsum = heatsum_delta.hvplot(
-        projection=ccrs.PlateCarree(),
-        coastline=True,
-        # title=f"delta in cumulative heat ({label_summer})\nmean({label_source} {flags.new_years[0]}:{flags.new_years[1]}) - mean(obs {flags.ref_years[0]}:{flags.ref_years[1]})",
-        title="Change in Cumulative Heat",
-        clabel="°C-days",
-        xlabel="",
-        ylabel="",
-    ).opts(ylim=(-59, None), hooks=[cmap_heatsum])
+    horizontal_cbar_heatsum = phelpers.horizontal_cbar_hv(
+        clabel=r"$\Delta$ Cumulative Heat (°C-days)"
+    )
+    deltamap_heatsum = heatsum_delta.hvplot.quadmesh(
+        projection=ccrs.PlateCarree(), coastline=True, title=""
+    ).opts(
+        hv.opts.QuadMesh(
+            colorbar=False,
+            ylim=(-59, None),
+            hooks=[cmap_sumheat_hook, horizontal_cbar_heatsum],
+            **fig_kwargs,
+        )
+    )
 
     # combine
     figlist_delta = [deltamap_hwf, deltamap_hwd, deltamap_heatsum]
@@ -112,27 +119,17 @@ def get_delta_fig(
     return figlist_delta
 
 
+cmap_hwf_hook = phelpers.cbar_helper_hv(0, 15, cmap=phelpers.cmap_red)
+cmap_hwd_hook = phelpers.cbar_helper_hv(-2, 6, cmap=phelpers.cmap_rdbu, cmap_center=0)
+cmap_heatsum_hook = phelpers.cbar_helper_hv(0, 25, cmap=phelpers.cmap_red)
+
 # ERA observed --------------------------------------
 hw_old_obs = hw_obs.sel(time=slice(str(flags.ref_years[0]), str(flags.ref_years[1])))
 hw_new_obs = hw_obs.sel(time=slice(str(flags.new_years[0]), str(flags.new_years[1])))
 mean_diff_obs = hw_new_obs.mean(dim="time") - hw_old_obs.mean(dim="time")
 figlist_delta_obs = get_delta_fig(
-    mean_diff_obs,
-    label_source="obs",
-    label_summer=flags.label,
-    ref_years=flags.ref_years,
-    new_years=flags.new_years,
-    # cmap_hwf=reds_discrete_odd,
+    mean_diff_obs, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook
 )
-
-
-# # manually fix the tickers on hwf
-# hwf_ticks = np.linspace(0, 15, 11)[::2]
-# # manually fix the tickers on hwf
-# fig_delta_obs[0].map(
-#     lambda x: x.opts(colorbar_opts={"ticker": bokeh.models.FixedTicker(ticks=hwf_ticks)}),
-#     hv.Image,
-# )
 
 # make sure order matches get_delta_fig!
 var_list = ["HWF", "HWD", "sumHeat"]  # , "MAX"]
@@ -147,7 +144,7 @@ fig_delta_obs = hv.Layout(
                 -60 + 11,
                 f"Global Mean={str(mean_diff_obs[f't2m_x.t2m_x_threshold.{var_list[i]}'].mean().values.round(2))}",
                 fontsize=phelpers.label_size - 2,
-            ).opts(ylim=(-59, 80), xlim=(-180, 180), **fig_kwargs)
+            ).opts(ylim=(-59, 80), xlim=(-180, 180))
         )
         for i in range(len(var_list))
     ]
@@ -165,22 +162,8 @@ hw_new_synth = hw_synth.sel(
 )
 mean_diff_synth = hw_new_synth.mean(dim="time") - hw_old_synth.mean(dim="time")
 fig_delta_synth_init = get_delta_fig(
-    mean_diff_synth,
-    label_source="synth",
-    label_summer=flags.label,
-    ref_years=flags.ref_years,
-    new_years=flags.new_years,
-    # cmap_hwf=reds_discrete_odd,
+    mean_diff_synth, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook
 )
-# # manually fix the tickers on hwf
-# fig_delta_synth_init[0].map(
-#     lambda x: x.opts(
-#         colorbar_opts={
-#             "ticker": bokeh.models.FixedTicker(ticks=hwf_ticks),
-#         }
-#     ),
-#     hv.Image,
-# )
 
 
 ### also calculate the correlations for each, and add as labels ---
@@ -211,28 +194,51 @@ fig_delta_synth = hv.Layout(
                 f"Global Mean={str(mean_diff_synth[f't2m_x.t2m_x_threshold.{var_list[i]}'].mean().values.round(2))}",
                 fontsize=phelpers.label_size - 2,
             )
-        ).opts(ylim=(-59, None))
+        ).opts(ylim=(-59, 80), xlim=(-180, 180))
         for i in range(len(var_list))
     ]
-)
+).opts(**layout_kwargs)
 # hvplot.save(fig_delta_synth, f"fig_delta_synth_anom_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.html")
 
 # difference between observed and synthetic -------------------
+
+cmap_hwf_diff_hook = phelpers.cbar_helper_hv(-8, 8, cmap=phelpers.cmap_rdbu)
+cmap_hwd_diff_hook = phelpers.cbar_helper_hv(-4, 4, cmap=phelpers.cmap_rdbu)
+cmap_heatsum_diff_hook = phelpers.cbar_helper_hv(-12, 12, cmap=phelpers.cmap_rdbu)
+
+
 obs_minus_synth = mean_diff_obs - mean_diff_synth
 fig_obs_minus_synth_init = get_delta_fig(
-    obs_minus_synth,
-    label_source="obs - synth",
-    label_summer=flags.label,
-    ref_years=flags.ref_years,
-    new_years=flags.new_years,
-    clim_hwf=(-10, 10),
-    clim_hwd=(-3, 3),
-    clim_heatsum=(-30, 30),
-    clim_max=(-2, 2),
-    cmap_hwf=phelpers.rdbu_discrete,
-    cmap_hwd=phelpers.rdbu_discrete,
-    cmap_heatsum=phelpers.rdbu_discrete,
+    obs_minus_synth, cmap_hwf_diff_hook, cmap_hwd_diff_hook, cmap_heatsum_diff_hook
 )
+
+# update the labels of each of these plots
+fig_obs_minus_synth_init[0].opts(
+    hv.opts.QuadMesh(
+        hooks=[
+            cmap_hwf_diff_hook,
+            phelpers.horizontal_cbar_hv(clabel="Obs - Synth (days)"),
+        ]
+    )
+)
+fig_obs_minus_synth_init[1].opts(
+    hv.opts.QuadMesh(
+        hooks=[
+            cmap_hwd_diff_hook,
+            phelpers.horizontal_cbar_hv(clabel="Obs - Synth (days)"),
+        ]
+    )
+)
+
+fig_obs_minus_synth_init[2].opts(
+    hv.opts.QuadMesh(
+        hooks=[
+            cmap_heatsum_diff_hook,
+            phelpers.horizontal_cbar_hv(clabel=r"Obs - Synth (°C-days)"),
+        ]
+    )
+)
+
 
 # add in mean absolute error over the map
 mean_abs_diff = abs(obs_minus_synth).mean()
@@ -247,50 +253,83 @@ fig_obs_minus_synth = hv.Layout(
                 f"MAE={str(mean_abs_diff[f't2m_x.t2m_x_threshold.{var_list[i]}'].values.round(2))}",
                 fontsize=phelpers.label_size - 2,
             )
-        ).opts(ylim=(-59, None), xlim=(-180, 180))
+        ).opts(ylim=(-59, 80), xlim=(-180, 180))
         for i in range(len(var_list))
     ]
-)
-
-
-# manually update the labels on this one
-fig_obs_minus_synth[0].opts(title="obs - synth")
-fig_obs_minus_synth[1].opts(title="obs - synth")
-fig_obs_minus_synth[2].opts(title="obs - synth")
-# fig_obs_minus_synth[3].opts(title=f"obs - synth ({flags.label})")
+).opts(**layout_kwargs)
 
 
 # stitch all together into a single figure -------------------------
 fig1 = fig_delta_obs[0] + fig_delta_synth[0] + fig_obs_minus_synth[0]
 for i in np.arange(1, len(fig_delta_obs)).tolist():
     fig1 += fig_delta_obs[i] + fig_delta_synth[i] + fig_obs_minus_synth[i]
-
+fig1 = fig1.cols(3).opts(**layout_kwargs)
 
 # iterate over the subplots and add the label to the title. --
-
-# # weird ordering bc I want to go vertical instead of horizontal
+# weird ordering bc I want to go vertical instead of horizontal
 # letter_ordering = ["a", "d", "g", "b", "e", "h", "c", "f", "i"]
+
 # fig1_updated = phelpers.add_subplot_labels(fig1, labels=letter_ordering)
-fig1_updated = fig1.cols(3).opts(shared_axes=False)
 
-####################
-# Final figure! ----
-####################
-
-# update of all maps here.
-fig1_updated.map(
-    lambda x: x.opts(
-        xticks=0,
-        yticks=0,
-        xlabel="",
-        xlim=(-180, 180),
-    ),
-    hv.Image,
-).map(lambda x: x.opts(xlabel=""), hv.Text)
-
-# fig1_final = fig1_updated.map(
-#     lambda x: x.options(frame_height=phelpers.fheight_wide, **phelpers.global_kwargs),
-#     [hv.Image, hv.Text],
+# fig1_updated = (fig1.cols(3)).opts(
+#     shared_axes=False,
+#     # sublabel_format="({alpha})",
+#     tight=True,
+#     tight_padding=(1, 20),
+#     # sublabel_position=(-0.05, 0.1),
+#     # sublabel_size=phelpers.label_size,
 # )
+# # hvplot.save(fig1_updated, fig_dir / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png")
 
-# hvplot.save(fig1_final, fig_dir / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png")
+# add subplot labels in matplotlib code
+fig = hv.render(fig1, backend="matplotlib")
+
+# collect only map axes (exclude colorbars)
+map_axes = [ax for ax in fig.axes if ax.__class__.__name__ == "GeoAxes"]
+
+# weird ordering bc I want to go vertical instead of horizontal
+# labels = ["(a)", "(d)", "(g)", "(b)", "(e)", "(h)", "(c)", "(f)", "(i)"]
+labels = ["(a)", "(b)", "(c)", "(d)", "(e)", "(f)", "(g)", "(h)", "(i)"]
+
+for ax, lab in zip(map_axes, labels, strict=False):
+    ax.text(
+        0.015,
+        0.18,
+        lab,
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=phelpers.label_size,
+        fontweight="normal",
+    )
+
+# fig.savefig(fig_dir / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png", dpi=200, bbox_inches="tight")
+
+##########################################3
+# supplemental analyses mentioned in the paper
+###########################################3
+
+# correlation between hwf and sumheat changes in the obs
+xr.corr(
+    mean_diff_obs["t2m_x.t2m_x_threshold.HWF"],
+    mean_diff_obs["t2m_x.t2m_x_threshold.sumHeat"],
+)
+
+
+xr.corr(
+    mean_diff_obs["t2m_x.t2m_x_threshold.HWF"],
+    mean_diff_obs["t2m_x.t2m_x_threshold.HWD"],
+)
+
+# repeated for synthetic
+xr.corr(
+    mean_diff_synth["t2m_x.t2m_x_threshold.HWF"],
+    mean_diff_synth["t2m_x.t2m_x_threshold.HWD"],
+)
+
+xr.corr(
+    mean_diff_synth["t2m_x.t2m_x_threshold.HWF"],
+    mean_diff_synth["t2m_x.t2m_x_threshold.sumHeat"],
+)
+
+#

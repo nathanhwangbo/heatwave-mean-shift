@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 import matplotlib.ticker
 
-
 ########################
 # plot global variables
 # eg themes, colormaps
@@ -36,8 +35,7 @@ blues_discrete = tastymap.cook_tmap("blues", num_colors=10).cmap
 
 ## shared figure sizes and font sizes ---------
 
-# using the maps as reference
-title_size = 16
+title_size = 18
 label_size = 14
 tick_size = 12
 
@@ -53,7 +51,7 @@ global_kwargs = dict(
         "title": title_size,
         "labels": label_size,
         "ticks": tick_size,
-        "legend": tick_size,
+        # "legend": 5,
     },
 )
 
@@ -63,6 +61,64 @@ global_kwargs = dict(
 ##############################
 # helper functions
 ##############################
+
+
+def shared_ylabel_hook(plot, element, shared_label=None, xpos=0.02):
+    """
+    A hook to place a single, centered y-axis label for vertically stacked plots.
+    """
+    fig = plot.state
+    ax = plot.handles["axis"]
+    # take shared_label from existing plot.
+    if shared_label is None:
+        if hasattr(plot, "ylabel") and plot.ylabel:
+            shared_label = plot.ylabel
+            ax.set_ylabel("")
+        elif element.vdims:
+            shared_label = element.vdims[0].label
+            ax.set_ylabel("")
+
+    # try to find the vertical midpoint
+    fig.text(
+        xpos,
+        0.5,
+        shared_label,
+        va="center",
+        ha="center",
+        rotation="vertical",
+        fontsize=label_size,
+    )
+
+
+def shared_ylabel_hv(shared_label=None, xpos=0.02):
+    return partial(shared_ylabel_hook, shared_label=shared_label, xpos=xpos)
+
+
+# 2. Define the Hook to modify the first x-tick label
+def ticks_bound_hook(plot, element, x_or_y="x"):
+    """
+    A HoloViews hook to change the first x-axis tick label to '<' and the last tick label to >.
+    x_or_y: "x", or "y", or "both". default is "x"
+    """
+    ax = plot.handles["axis"]
+    plot.state.canvas.draw()  # makes sure ticks are populated?
+
+    if x_or_y in ["x", "both"]:
+        xlabels = [item.get_text() for item in ax.get_xticklabels()]
+        if xlabels:
+            xlabels[0] = f"<{xlabels[0]}"
+            xlabels[-1] = f">{xlabels[-1]}"
+            ax.set_xticklabels(xlabels)
+    if x_or_y in ["y", "both"]:
+        ylabels = [item.get_text() for item in ax.get_yticklabels()]
+        if ylabels:
+            ylabels[0] = f"<{ylabels[0]}"
+            ylabels[-1] = f">{ylabels[-1]}"
+            ax.set_yticklabels(ylabels)
+
+
+def ticks_bound_hv(x_or_y="x"):
+    return partial(ticks_bound_hook, x_or_y=x_or_y)
 
 
 def subplot_label_hook(plot, element, sub_label=""):
@@ -105,197 +161,6 @@ def add_subplot_labels(plot, labels=string.ascii_lowercase):
         updated_figlist.append(updated_subplot)
 
     return updated_figlist
-
-
-# def cbar_discrete(
-#     start, end, cmap="RdBu", width=None, zero_centered=False, extension="bokeh"
-# ):
-#     """
-#     a hvplot helper to make a zero-centered segmented colorbar
-#     :param: start and end are the two endpoints of the colorbar. 0 should be contained inside
-#     :param: cmap is a string with the desired colormap. should be accepted by tastymap.cook_tmap(), and should probably be a diverging colorbar.
-#     :param: width is a number, the distance between colors. This will be used to determine the number of colors.
-#     :param: extension is the hvplot extension -- for now, bokeh and matplotlib are supported.
-
-#     :returns: a dictionary to be passed into holoviews .opts
-#     :example:
-#     da = xr.tutorial.load_dataset('air_temperature.nc').isel(time=10) - 273
-#     eg_cbar = cbar_zero_centered(-30, 40)
-#     da.hvplot().opts(**eg_cbar)
-#     """
-#     crange = end - start  # range of the cbar
-
-#     # set default width (aka distance between colors)
-#     if width is None:
-#         # strategy for setting default width:
-#         # we're gonna aim for ~10 colors
-#         # but we're going to prioritize "round" spacings.
-#         # this strategy is assuming that the crange is an integer
-
-#         def divisors(n):
-#             """
-#             get divisors of n, used to calculate default width.
-#             https://stackoverflow.com/a/36700288
-#             """
-#             divs = [1]
-#             for i in range(2, int(np.sqrt(n)) + 1):
-#                 if n % i == 0:
-#                     divs.extend([i, n / i])
-#             # divs.extend([n])  # n is a divisor, but not needed for our function
-#             return np.array(divs)
-
-#         def orderOfMag(n):
-#             """
-#             example: if n = 0.03, then should return 1/100
-#             """
-#             return 10 ** np.floor(np.log10(n))
-
-#         # aiming for ~10 colors. this is our initial guess.
-#         width_ballpark = crange / 10
-#         if width_ballpark < 1:
-#             # if 10 evenly spaced colors produces widths < 1, then try widths in [.1, .125,.2, .25,.5]
-#             # which guarantees that all integers get their own ticks
-#             # this scales by order of magnitude, in case the range is small.
-#             # (e.g. if width is 0.03, then should try 0.01, 0.0125, ect..)
-#             width_candidates = np.array([1, 1.25, 2, 2.5, 5]) * orderOfMag(
-#                 width_ballpark
-#             )
-
-#         else:
-#             # if the width between colors spans more than 1, then try the divisors
-#             # TODO: might be worth filtering this so that 0 MUST be one of the tickmarks.
-#             width_candidates = divisors(crange)
-
-#         check_n_colors = crange / width_candidates  # number of colors for each width
-#         width = width_candidates[
-#             np.argmin(np.abs(check_n_colors - 10))
-#         ]  # pick the width that produces closest to 10 colors
-
-#     # end getting default width ---
-
-#     n_colors = int(np.round(crange / width))  # round to handle weird precision.
-#     # use n_colors + 1 bc including both endpoints
-#     ticks = np.linspace(start, end, n_colors + 1).round(10).tolist()
-
-#     # label the number at every colorchage
-#     # todo: if there are a lot of colors, we could do every other number
-#     if extension == "bokeh":
-#         tick_loc = {"ticker": FixedTicker(ticks=ticks)}
-#     elif extension == "matplotlib":
-#         tick_loc = {"ticks": ticks}
-#     else:
-#         exit("only bokeh and matplotlib extensions are supported.")
-
-#     ############################################
-#     # adds logic to center a diverging cmap at 0
-#     ############################################
-#     is_not_symmetric = abs(start) != abs(end)
-#     # check that (1) we want zero centered and (2) the cbar isn't already symmetric
-#     if (zero_centered) and (is_not_symmetric):
-#         # find location of 0
-#         zero_ind = np.searchsorted(ticks, 0)
-
-#         # use twice the colors, so that cmap_base[n_colors] is white.
-#         # TODO: this is a little hacky and leads to muted colors.
-#         # one alternative would be to split the cbar at zero and rescale (as in matplotlib twoslopenorm)
-#         # could be done using two calls to tastymap.resize, which are combined using &
-#         # e.g. cmap_below0 = cmap_base[0:n_colors].resize(zero_ind),
-#         # cmap_above0 = cmap_base[n_colors:].resize(n_colors - zero_ind)
-#         # cmap_final = (cmap_below0 & cmap_above0).cmap
-
-#         cmap_base = tastymap.cook_tmap(cmap, num_colors=n_colors * 2)
-
-#         # n_colors is white, so we want to start zero_ind below, and then pick out the next n_colors.
-#         # mult by 2 version if you wanna up the saturation
-#         # cmap_final = cmap_base[(n_colors - zero_ind) : (n_colors - zero_ind + n_colors)] * 2
-#         cmap_final = cmap_base[(n_colors - zero_ind) : (n_colors - zero_ind + n_colors)]
-#     else:
-#         cmap_final = tastymap.cook_tmap(cmap, num_colors=n_colors)
-
-#     cbar_dict = dict(
-#         cmap=cmap_final.cmap,
-#         clim=(start, end),
-#         colorbar_opts=tick_loc,
-#         color_levels=ticks,
-#     )
-
-#     return cbar_dict
-
-
-# def cbar_zero_centered(start, end, num_bins="auto", cmap="RdBu", rescale=False):
-#     """
-#     generate a discrete matplotlib colorbar with white at the zero mark, even if colorbar isn't symmetric around zero.
-#     This function relies on matplotlib's method of automatically choosing tickmark locations, which means it doesn't always respect "(start, end)".
-#         If you want a version of this that implements some gross custom logic I made for automatically choosing levels, let me know and I'll send it over
-
-#     Args:
-#         start (numeric): the bottom endpoint of the colobar, must be less than zero
-#         end (numeric): the top endpoint of the colorbar, must be greater than zero
-#         num_bins (int, optional): number of colors in the colorbar. See matplotlib.ticker.MaxNLocator. Defaults to "auto".
-#         cmap (str, optional): what colormap to use. see list(plt.colormaps) for options. Diverging colorbars make the most sense here. Defaults to "RdBu".
-#                               bonus! if you import colorcet, you can pass in any of their colormap names to this argument!
-#         rescale (bool, optional): whether to rescale the colormap so that the endpoints are equally intense, regardess of their values. Defaults to False.
-
-#     Returns:
-#         dict: dictionary of kwargs that can be passed into xarary's plot accessor. (will also work for most matplotlib functions)
-
-#     Example:
-#         my_kwargs = cbar_zero_centered(-30, 20)
-#         da = xr.tutorial.open_dataset('air_temperature').isel(time=1).air - 273.15
-#         da.plot(**my_kwargs)
-#     """
-
-#     # 256 colors, interpolating between 0 and 1
-#     og_cmap = plt.colormaps[cmap]  # endpoints are 0 and 1, by default
-
-#     zero_fraction = (0 - start) / (
-#         end - start
-#     )  # eg. zero is "0.4" of the way from the top
-#     shift_amount = 0.5 - zero_fraction
-
-#     if rescale:
-#         # the bottom and top of the colorbar will be the "darkest" shades, even if the numbers aren't symmetric
-#         # e.g. for {cmap= 'RdBu', start=-5, end = 30}, -5 will be just as dark red as 30 is dark blue.
-#         new_colors = og_cmap(
-#             np.interp(np.linspace(0, 1, og_cmap.N), [0, zero_fraction, 1], [0, 0.5, 1])
-#         )
-#     else:
-#         # e.g. for {cmap= 'RdBu', start=-5, end = 30}, -5 will be just light red and 30 dark blue.
-#         if shift_amount >= 0:  # if |start| < |end|
-#             new_colors = og_cmap(
-#                 np.interp(
-#                     np.linspace(0, 1, og_cmap.N),
-#                     [0, zero_fraction, 1],
-#                     [shift_amount, 0.5, 1],
-#                 )
-#             )
-#         else:  # if |start| > |end|
-#             # shift amount is negative, so 1 + shift_amount <  1
-#             new_colors = og_cmap(
-#                 np.interp(
-#                     np.linspace(0, 1, og_cmap.N),
-#                     [0, zero_fraction, 1],
-#                     [0, 0.5, 1 + shift_amount],
-#                 )
-#             )
-
-#     # can also do something like matplotlib.colors.LinearSegmentedColormap.from_list('a', new_colors, N = len(levels))
-#     shifted_cmap = matplotlib.colors.ListedColormap(new_colors)
-
-#     # rely on mpl's auto-generation of tickmarks
-#     # this can be annoying sometimes (i.e. it doesn't respect (start, end) exactly)
-#     levels = matplotlib.ticker.MaxNLocator(nbins=num_bins).tick_values(start, end)
-#     norm = matplotlib.colors.BoundaryNorm(
-#         levels, shifted_cmap.N
-#     )  # .N should still be 256
-
-#     cbar_kwargs = dict(
-#         cmap=shifted_cmap,
-#         norm=norm,
-#         levels=levels,
-#     )
-
-#     return cbar_kwargs
 
 
 def cbar_helper(
@@ -472,6 +337,12 @@ def cbar_helper_hv(
 
     Returns:
         partial function: to be passed into the "hooks" argument of hvplot.
+
+    Usage:
+        my_cbar = cbar_helper_hv(-30, 20, cmap = "RdBu")
+        da = xr.tutorial.open_dataset('air_temperature').isel(time=1).air - 273.15
+        da.hvplot().opts(hooks=[my_cbar])
+
     """
     cbar_kwargs = cbar_helper(start, end, num_bins, cmap, cmap_center, rescale)
     if extension == "matplotlib":
@@ -481,6 +352,67 @@ def cbar_helper_hv(
     else:
         return "only matplotlib and bokeh extensions are supported"
     return hook_fnc
+
+
+def horizontal_cbar_hook(plot, element, pad=0.05, shrink=1, extend="both", clabel=""):
+    """
+    holoviews hook to make a horizontal cbar in mpl
+    the reason this needs a hook is because mpl doesn't have a method to re-orient an existing cbar
+    so you have to make a new cbar from scratch.
+    As a result -- in your hvcode, you should use colorbar=False. (otherwise there will be 2 cbars)
+
+    Args:
+        plot, element. as in all hooks
+
+    Usage:
+        da = xr.tutorial.open_dataset("air_temperature").isel(time=0)
+        my_cbar = cbar_helper_hv(-30, 20, cmap = "RdBu")
+        da = xr.tutorial.open_dataset('air_temperature').isel(time=1).air - 273.15
+        da.hvplot().opts(colorbar = False, hooks=[my_cbar, horizontal_cbar_hook])
+
+    """
+    # Grab the native Matplotlib handles
+    fig = plot.state
+    ax = plot.handles["axis"]
+    artist = plot.handles["artist"]
+
+    # add horizontal cbar
+    cbar = fig.colorbar(
+        artist, ax=ax, orientation="horizontal", pad=pad, shrink=shrink, extend=extend
+    )
+
+    # show only every other tick
+    ticks = cbar.get_ticks()
+    new_ticks = ticks[::2]
+    cbar.set_ticks(new_ticks)
+
+    # set label
+    cbar.set_label(clabel, fontsize=label_size - 2)
+
+
+def horizontal_cbar_hv(pad=0.05, shrink=1, extend="both", clabel=""):
+    return partial(
+        horizontal_cbar_hook, pad=pad, shrink=shrink, extend=extend, clabel=clabel
+    )
+
+
+def custom_sublabels_hook(plot, element, new_labels):
+    """
+    hook to reorder subplot lables in an hv layout.
+    Arg:
+        new_labels: a list with the same length as the number of subplots, with the lables for each plot going left -> right and then top -> bottom.
+    """
+    sublabel = plot.handles.get("sublabel")
+    if sublabel:
+        mapping = zip(np.arange(1, 5), new_labels)
+        # Example: map layout_num 1->'C', 2->'A', 3->'B'
+        # mapping = {1: 'C', 2: 'A', 3: 'B'}
+        current_num = plot.layout_num if plot.subplot else 1
+        sublabel.set_text(mapping.get(current_num, sublabel.get_text()))
+
+
+def custom_sublabels_hv(new_labels):
+    return partial(custom_sublabels_hook, new_labels)
 
 
 def get_heatmap(

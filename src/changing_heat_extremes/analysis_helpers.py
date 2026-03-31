@@ -28,7 +28,9 @@ def add_landmask(ds):
     is_land = landmask == 0
 
     # also get rid of greenland
-    greenland = regionmask.defined_regions.natural_earth_v5_0_0.countries_110[["Greenland"]]
+    greenland = regionmask.defined_regions.natural_earth_v5_0_0.countries_110[
+        ["Greenland"]
+    ]
     gl_mask = greenland.mask(ds)
     is_not_greenland = gl_mask.isnull()
 
@@ -71,11 +73,15 @@ def fourier_climatology_smoother(da, n_time, n_bases=5):
         if n_time == 365:
             # get empirical average for the doy
             empirical_sc = da.groupby("time.dayofyear").mean()  # dim (doy, lat, lon)
-            mu = empirical_sc.mean(dim="dayofyear")  # map of average across all days. dim (lat, lon)
+            mu = empirical_sc.mean(
+                dim="dayofyear"
+            )  # map of average across all days. dim (lat, lon)
         elif n_time == 12:
             # get empirical average for the month
             empirical_sc = da.groupby("time.month").mean()  # dim (month, lat, lon)
-            mu = empirical_sc.mean(dim="month")  # map of average across all days. dim (lat, lon)
+            mu = empirical_sc.mean(
+                dim="month"
+            )  # map of average across all days. dim (lat, lon)
         else:
             raise ValueError("only n_time = 12 or 365 are handled")
     # if da is pre-averaged and has dimension name dim_name (i.e. "doy" or "month")
@@ -124,31 +130,40 @@ def process_heatwave_metrics(da_metrics):
     ## toy example for mental model:
     ##     eg_hwf = [0,0,3,4,3,0] # say the first 3 values are the ref period, and the last 3 is the new period
     ##     eg_ava = [0,0,10,20,5, 0] OR a_ava = [nan, nan, 10, 20, 5, nan]
+    ##     implies....
     ##     a_cumheat = [0,0,30,80,15,0] OR a_cumheat = [nan, nan, 30, 80, 15, nan]
     ##     a_diff = 95/3 - 10 =~ 21.7, OR a_diff = 65/2 - 30 =~ 2.5
 
     # compute cumulative heat
     da_metrics["t2m_x.t2m_x_threshold.sumHeat"] = (
-        da_metrics["t2m_x.t2m_x_threshold.AVA"] * da_metrics["t2m_x.t2m_x_threshold.HWF"]
+        da_metrics["t2m_x.t2m_x_threshold.AVA"]
+        * da_metrics["t2m_x.t2m_x_threshold.HWF"]
     )
 
     # in these intensity metrics (AVI and AVA, zeros mean that there were no heatwaves that year)
     # so let's turn those 0s to nans
     # this would be useful, if we wanted AVI to measure "average intensity of a day | day was a heatwave day"
     # This reduces the dependence of AVI on heatwave frequency.
-    da_metrics["t2m_x.t2m_x_threshold.AVI"] = da_metrics["t2m_x.t2m_x_threshold.AVI"].where(
-        da_metrics["t2m_x.t2m_x_threshold.AVI"] != 0
-    )
+    da_metrics["t2m_x.t2m_x_threshold.AVI"] = da_metrics[
+        "t2m_x.t2m_x_threshold.AVI"
+    ].where(da_metrics["t2m_x.t2m_x_threshold.AVI"] != 0)
 
-    da_metrics["t2m_x.t2m_x_threshold.AVA"] = da_metrics["t2m_x.t2m_x_threshold.AVA"].where(
-        da_metrics["t2m_x.t2m_x_threshold.AVA"] != 0
-    )
+    da_metrics["t2m_x.t2m_x_threshold.AVA"] = da_metrics[
+        "t2m_x.t2m_x_threshold.AVA"
+    ].where(da_metrics["t2m_x.t2m_x_threshold.AVA"] != 0)
 
     metrics_synth_land = add_landmask(da_metrics)
     return metrics_synth_land
 
 
-def get_synthetic_hw_metrics(da_ref, da_synth_new, new_years, thresholds_ref, definitions, use_calendar_summer=True):
+def get_synthetic_hw_metrics(
+    da_ref,
+    da_synth_new,
+    new_years,
+    thresholds_ref,
+    definitions,
+    use_calendar_summer=True,
+):
     """
     generate heatwave metrics given a early period xr object (da_ref) and a synthetic latter period (da_synth_new)
 
@@ -173,22 +188,30 @@ def get_synthetic_hw_metrics(da_ref, da_synth_new, new_years, thresholds_ref, de
         calendar="noleap",
         use_cftime=True,
     )
-    era_land_synth_new = da_synth_new.assign_coords(time=synth_time)  # pretend its the new time period
+    era_land_synth_new = da_synth_new.assign_coords(
+        time=synth_time
+    )  # pretend its the new time period
 
     # combine back. this is comparable to era_land_all_anom above, except with a small gap in the middle (1990-95)
     era_land_synth_anom = xr.concat([da_ref, era_land_synth_new], dim="time")
 
-    era_land_synth_anom["t2m_x"].attrs = {"units": "C"}  # hdp package needs units, and anom are same in K or C
+    era_land_synth_anom["t2m_x"].attrs = {
+        "units": "C"
+    }  # hdp package needs units, and anom are same in K or C
 
     # calculate heatwave metrics
-    measures_synth = hdp.measure.format_standard_measures(temp_datasets=[era_land_synth_anom["t2m_x"]]).chunk(
-        {"time": -1, "lat": 10, "lon": 10}
-    )
+    measures_synth = hdp.measure.format_standard_measures(
+        temp_datasets=[era_land_synth_anom["t2m_x"]]
+    ).chunk({"time": -1, "lat": 10, "lon": 10})
 
     # if there isnt a gap between the 2 periods, then you can just pass measures_synth to compute_group_metrics
     # but if there's a gap, then need to split into old and new
-    measures_synth_old = measures_synth.sel(time=slice(str(ref_years[0] - 1), str(ref_years[1])))
-    measures_synth_new = measures_synth.sel(time=slice(str(new_years[0] - 1), str(new_years[1])))
+    measures_synth_old = measures_synth.sel(
+        time=slice(str(ref_years[0] - 1), str(ref_years[1]))
+    )
+    measures_synth_new = measures_synth.sel(
+        time=slice(str(new_years[0] - 1), str(new_years[1]))
+    )
 
     if use_calendar_summer:
         metrics_synth_old = hdp.metric.compute_group_metrics(
@@ -207,7 +230,9 @@ def get_synthetic_hw_metrics(da_ref, da_synth_new, new_years, thresholds_ref, de
             start=(6, 1),
             end=(9, 1),
         )
-        metrics_dataset_synth = xr.concat([metrics_synth_old, metrics_synth_new], dim="time")
+        metrics_dataset_synth = xr.concat(
+            [metrics_synth_old, metrics_synth_new], dim="time"
+        )
 
     else:
         # day of year summer mask
@@ -227,7 +252,9 @@ def get_synthetic_hw_metrics(da_ref, da_synth_new, new_years, thresholds_ref, de
             use_doy=True,
             doy_mask=era_summer_mask,
         )
-        metrics_dataset_synth = xr.concat([metrics_synth_old, metrics_synth_new], dim="time")
+        metrics_dataset_synth = xr.concat(
+            [metrics_synth_old, metrics_synth_new], dim="time"
+        )
 
     metrics_synth_land = process_heatwave_metrics(metrics_dataset_synth)
 

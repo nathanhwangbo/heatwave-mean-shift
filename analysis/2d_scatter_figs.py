@@ -15,10 +15,12 @@ from changing_heat_extremes import flags
 from changing_heat_extremes import plot_helpers as phelpers
 import xarray as xr
 import polars as pl
-import polars.selectors as cs
 import numpy as np
 import holoviews as hv
-import statsmodels.api as sm
+import string
+
+# import statsmodels.api as sm
+import statsmodels.formula.api as smf
 import hvplot.xarray  # noqa: F401
 import hvplot.polars  # noqa: F401
 from pathlib import Path
@@ -30,14 +32,14 @@ fig_dir = Path("figures")
 data_dir = Path("processed_data")
 
 fig_kwargs = dict(
-    fig_inches=(phelpers.width_default, phelpers.height_wide),
+    fig_inches=(phelpers.width_default, phelpers.height_default),
     **phelpers.global_kwargs,
 )
 
-layout_kwargs = dict(sublabel_format="", tight=True, tight_padding=4)
+layout_kwargs = dict(tight=True, tight_padding=4)
 
 
-def fig_scatter(df, bin_var, bin_id_var, hw_metric, label, color):
+def fig_scatter(df, bin_var, bin_id_var, hw_metric, label, color, linestyle="-"):
 
     binned_df = (
         df.sort(bin_var)
@@ -64,14 +66,24 @@ def fig_scatter(df, bin_var, bin_id_var, hw_metric, label, color):
             [bin_id_var, f"{hw_metric}_mean", f"{hw_metric}_std"]
         ).to_numpy(),
         label=label,
-    ).opts(alpha=0.7, capsize=3, edgecolor=color)
+    ).opts(
+        alpha=0.5,
+        capsize=3,
+        edgecolor=color,
+        linestyle=linestyle,
+    )
 
     lines = (
         binned_df.sort(bin_id_var)
         .hvplot.line(
-            x=bin_id_var, y=f"{hw_metric}_mean", color=color, marker=".", ms=10
+            x=bin_id_var,
+            y=f"{hw_metric}_mean",
+            color=color,
+            marker=".",
+            ms=10,
+            linestyle=linestyle,
         )
-        .opts(alpha=0.7)
+        .opts(alpha=0.5)
     )
 
     # fig = scatter * means * sds
@@ -191,24 +203,48 @@ combined_synth_2deg_df = combined_synth_2deg_df.with_columns(
 
 # variance -----------------------
 fig_var_hwf_synth = fig_scatter(
-    combined_synth_2deg_df, "t2m_x_var", "var_bin_id", "HWF", "Synthetic", "blue"
+    combined_synth_2deg_df, "t2m_x_var", "var_bin_id", "HWF", "Synthetic", "blue", "--"
 ).opts(hv.opts.Scatter(alpha=0.01))
 fig_var_hwd_synth = fig_scatter(
-    combined_synth_2deg_df, "t2m_x_var", "var_bin_id", "HWD", "Synthetic", "blue"
+    combined_synth_2deg_df, "t2m_x_var", "var_bin_id", "HWD", "Synthetic", "blue", "--"
 ).opts(hv.opts.Scatter(alpha=0.01))
 fig_var_sumheat_synth = fig_scatter(
-    combined_synth_2deg_df, "t2m_x_var", "var_bin_id", "sumHeat", "Synthetic", "blue"
+    combined_synth_2deg_df,
+    "t2m_x_var",
+    "var_bin_id",
+    "sumHeat",
+    "Synthetic",
+    "blue",
+    "--",
 ).opts(hv.opts.Scatter(alpha=0.01))
 
 # skewness ----------------------
 fig_skew_hwf_synth = fig_scatter(
-    combined_synth_2deg_df, "t2m_x_skew", "skew_bin_id", "HWF", "Synthetic", "blue"
+    combined_synth_2deg_df,
+    "t2m_x_skew",
+    "skew_bin_id",
+    "HWF",
+    "Synthetic",
+    "blue",
+    "--",
 ).opts(hv.opts.Scatter(alpha=0.01))
 fig_skew_hwd_synth = fig_scatter(
-    combined_synth_2deg_df, "t2m_x_skew", "skew_bin_id", "HWD", "Synthetic", "blue"
+    combined_synth_2deg_df,
+    "t2m_x_skew",
+    "skew_bin_id",
+    "HWD",
+    "Synthetic",
+    "blue",
+    "--",
 ).opts(hv.opts.Scatter(alpha=0.01))
 fig_skew_sumheat_synth = fig_scatter(
-    combined_synth_2deg_df, "t2m_x_skew", "skew_bin_id", "sumHeat", "Synthetic", "blue"
+    combined_synth_2deg_df,
+    "t2m_x_skew",
+    "skew_bin_id",
+    "sumHeat",
+    "Synthetic",
+    "blue",
+    "--",
 ).opts(hv.opts.Scatter(alpha=0.01))
 
 
@@ -216,46 +252,58 @@ fig_skew_sumheat_synth = fig_scatter(
 # combine
 ##########
 fig_var_hwf = (fig_var_hwf_synth * fig_var_hwf_obs).opts(
-    xlabel="Climatological Variance (C²)",
-    ylabel="Change in HWF (days)",
+    xlabel="Climatological Variance (°C²)",
+    ylabel=r"$\Delta$ HWF (days)",
     xlim=(0, 60),
     ylim=(0, 50),
     show_legend=False,
+    hooks=[phelpers.shared_ylabel_hv(xpos=0.05)],
+    **fig_kwargs,
 )
 fig_var_hwd = (fig_var_hwd_synth * fig_var_hwd_obs).opts(
-    xlabel="Climatological Variance (C²)",
-    ylabel="Change in HWD (days)",
+    xlabel="Climatological Variance (°C²)",
+    ylabel=r"$\Delta$ HWD (days)",
     xlim=(0, 60),
     ylim=(0, 20),
     show_legend=False,
+    hooks=[phelpers.shared_ylabel_hv(xpos=0.36)],
+    **fig_kwargs,
 )
 fig_var_sumheat = (fig_var_sumheat_synth * fig_var_sumheat_obs).opts(
-    xlabel="Climatological Variance (C²)",
-    ylabel="Change in sumHeat (C-days)",
+    xlabel="Climatological Variance (°C²)",
+    ylabel=r"$\Delta$ sumHeat (°C-days)",
     xlim=(0, 60),
     ylim=(0, 75),
+    hooks=[phelpers.shared_ylabel_hv(xpos=0.66)],
+    **fig_kwargs,
 )
 
 fig_skew_hwf = (fig_skew_hwf_synth * fig_skew_hwf_obs).opts(
     xlabel="Climatological Skew",
-    ylabel="Change in HWF (days)",
-    xlim=(-1, 0.75),
-    ylim=(0, 50),
+    ylabel="",
+    # ylabel=r"$\Delta$ HWF (days)",
+    xlim=(-1.25, 0.75),
+    ylim=(-1, 50),
     show_legend=False,
+    **fig_kwargs,
 )
 fig_skew_hwd = (fig_skew_hwd_synth * fig_skew_hwd_obs).opts(
     xlabel="Climatological Skew",
-    ylabel="Change in HWD (days)",
-    xlim=(-1, 0.75),
-    ylim=(0, 20),
+    ylabel="",
+    # ylabel=r"$\Delta$ HWD (days)",
+    xlim=(-1.25, 0.75),
+    ylim=(-2, 20),
     show_legend=False,
+    **fig_kwargs,
 )
 fig_skew_sumheat = (fig_skew_sumheat_synth * fig_skew_sumheat_obs).opts(
     xlabel="Climatological Skew",
-    ylabel="Change in sumHeat (C-days)",
-    xlim=(-1, 0.75),
-    ylim=(0, 75),
+    ylabel="",
+    # ylabel=r"$\Delta$ sumHeat (°C-days)",
+    xlim=(-1.25, 0.75),
+    ylim=(-2, 75),
     show_legend=False,
+    **fig_kwargs,
 )
 
 fig_scatter = (
@@ -268,7 +316,147 @@ fig_scatter = (
         + fig_skew_sumheat
     )
     .cols(3)
-    .opts(shared_axes=False, **layout_kwargs)
+    .opts(
+        shared_axes=False,
+        sublabel_format="",
+        # sublabel_format="({alpha})",
+        # sublabel_position=(0.8, 0.8),
+        # sublabel_size=phelpers.tick_size,
+        **layout_kwargs,
+    )
 )
-fig_scatter
-# hvplot.save(fig_scatter, phelpers.fig_dir / "fig_2deg_new.png")
+# fig_scatter
+# hvplot.save(fig_scatter, phelpers.fig_dir / f"fig_2deg_{flags.label}.png")
+
+# convert to matplotlib and add labels manually
+fig = hv.render(fig_scatter, backend="matplotlib")
+num_panels = len(fig_scatter)
+
+# Keep only main panel axes (exclude colorbar/small helper axes)
+main_axes = sorted(
+    fig.axes,
+    key=lambda ax: ax.get_position().width * ax.get_position().height,
+    reverse=True,
+)[:num_panels]
+
+# Ensure panel order is row-major: top-left -> top-right, then next row
+main_axes = sorted(
+    main_axes,
+    key=lambda ax: (-ax.get_position().y0, ax.get_position().x0),
+)
+
+labels = [f"({c})" for c in string.ascii_lowercase[:num_panels]]
+for ax, lab in zip(main_axes, labels, strict=False):
+    ax.text(
+        0.98,
+        1.15,
+        lab,  # top-right inside panel
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=phelpers.label_size,
+        fontweight="normal",
+        zorder=30,
+    )
+
+# fig.savefig(
+#     phelpers.fig_dir / f"fig_2deg_{flags.label}.png", dpi=200, bbox_inches="tight"
+# )
+# fig.savefig("tmp.png", dpi=200, bbox_inches="tight")
+
+#################################
+# misc results cited in the paper
+#################################
+
+## fitting least squares lines ------
+
+# skew, synthetic
+ols_skew_synth_hwf = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWF') ~ t2m_x_skew",
+    data=combined_synth_2deg_df.to_pandas(),
+).fit()
+ols_skew_synth_hwd = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWD') ~ t2m_x_skew",
+    data=combined_synth_2deg_df.to_pandas(),
+).fit()
+ols_skew_synth_sumheat = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.sumHeat') ~ t2m_x_skew",
+    data=combined_synth_2deg_df.to_pandas(),
+).fit()
+
+# skew, obs
+ols_skew_obs_hwf = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWF') ~ t2m_x_skew", data=deg2_obs_df.to_pandas()
+).fit()
+smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWD') ~ t2m_x_skew", data=deg2_obs_df.to_pandas()
+).fit()
+ols_skew_obs_sumheat = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.sumHeat') ~ t2m_x_skew",
+    data=deg2_obs_df.to_pandas(),
+).fit()
+
+
+# var, synthetic
+ols_var_synth_hwf = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWF') ~ t2m_x_var",
+    data=combined_synth_2deg_df.to_pandas(),
+).fit()
+ols_var_synth_hwd = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWD') ~ t2m_x_var",
+    data=combined_synth_2deg_df.to_pandas(),
+).fit()
+ols_var_synth_sumheat = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.sumHeat') ~ t2m_x_var",
+    data=combined_synth_2deg_df.to_pandas(),
+).fit()
+
+# var, obs
+ols_var_obs_hwf = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWF') ~ t2m_x_var", data=deg2_obs_df.to_pandas()
+).fit()
+ols_var_obs_hwd = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.HWD') ~ t2m_x_var", data=deg2_obs_df.to_pandas()
+).fit()
+ols_var_obs_sumheat = smf.ols(
+    formula="Q('t2m_x.t2m_x_threshold.sumHeat') ~ t2m_x_var",
+    data=deg2_obs_df.to_pandas(),
+).fit()
+
+
+########################################################
+# instead, let's split by var >20 and get separate slopes
+########################################################
+
+
+# 3. Define helper to fit and get slope
+def get_slope(df, y_var, x_var):
+    model = smf.ols(formula=f"Q('{y_var}') ~ {x_var}", data=df.to_pandas()).fit()
+    return model.params[x_var]
+
+
+metrics = ["HWF", "HWD", "sumHeat"]
+results = {}  # will contain results, with order (synth, obs)
+
+for metric in metrics:
+    y_col = f"t2m_x.t2m_x_threshold.{metric}"
+
+    # Split by variance 20
+    obs_low = deg2_obs_df.filter(pl.col("t2m_x_var") < 20)
+    obs_high = deg2_obs_df.filter(pl.col("t2m_x_var") >= 20)
+    synth_low = combined_synth_2deg_df.filter(pl.col("t2m_x_var") < 20)
+    synth_high = combined_synth_2deg_df.filter(pl.col("t2m_x_var") >= 20)
+
+    # Slopes for low variance (< 20)
+    slope_obs_low = get_slope(obs_low, y_col, "t2m_x_var")
+    slope_synth_low = get_slope(synth_low, y_col, "t2m_x_var")
+
+    # Slopes for high variance (>= 20)
+    slope_obs_high = get_slope(obs_high, y_col, "t2m_x_var")
+    slope_synth_high = get_slope(synth_high, y_col, "t2m_x_var")
+
+    # order is (synth, obs)
+    results[f"{metric}_low_var"] = [slope_synth_low, slope_obs_low]
+    results[f"{metric}_high_var"] = [slope_synth_high, slope_obs_high]
+
+results
