@@ -212,7 +212,8 @@ fig.subplots_adjust(
     wspace=0.0,
     hspace=0.0,
 )
-fig.savefig(fig_dir / f"fig_moments_{flags.label}.png", dpi=200, bbox_inches="tight")
+# ! uncomment to save fig!
+# fig.savefig(fig_dir / f"fig_moments_{flags.label}.png", dpi=200, bbox_inches="tight")
 
 ###################################
 # supplemental analyses used in the paper
@@ -233,3 +234,39 @@ fig.savefig(fig_dir / f"fig_moments_{flags.label}.png", dpi=200, bbox_inches="ti
 #     title="Climatological Variance\ncontour at 20°C²"
 # )
 # # hvplot.save(fig_var_contour_final, fig_dir / "supplemental" /  f"fig_var_contour_{flags.label}.png")
+
+
+# # autocorrelation map
+
+cor_mean_diff_ar1 = xr.corr(
+    combined_ds["t2m_x_mean_diff"],
+    combined_ds["t2m_x_ar1"],
+).values.round(2)
+
+cbar_kwargs_ar = phelpers.cbar_helper_hv(
+    0.5, 0.9, cmap=phelpers.reds_cmap, extension=phelpers.backend_hv
+)
+horizontal_cbar_ar = phelpers.horizontal_cbar_hv(
+    clabel="Climatological AR(1)", shrink=0.7
+)
+fig_ar = (
+    combined_ds["t2m_x_ar1"]
+    .hvplot.quadmesh(**qm_kwargs)
+    .opts(
+        hv.opts.QuadMesh(
+            colorbar=False,
+            hooks=[cbar_kwargs_ar, horizontal_cbar_ar],
+            **fig_kwargs,
+        )
+    )
+)
+
+ar_text = hv.Text(
+    -180 + 180,
+    -60 + 11,
+    f"r={str(cor_mean_diff_ar1)}",
+    fontsize=phelpers.label_size - 2,
+)
+
+fig_ar_final = (fig_ar * ar_text).opts(ylim=(-59, 80), xlim=(-180, 180))
+# # hvplot.save(fig_ar_final, fig_dir / "supplemental" /  f"fig_ar_map_{flags.label}.png", dpi = 200)

@@ -100,10 +100,10 @@ combined_df = pl.from_pandas(
     combined_ds.to_dataframe(), include_index=True
 ).drop_nulls()
 
-# 2deg --------------------------------
+# 2deg, observed --------------------------------
 
 
-# variance --------------
+# variance, observed --------------
 
 
 deg2_obs_df = combined_df.filter(
@@ -121,6 +121,11 @@ bins_skew = np.linspace(
 )
 midpoints_skew = ((bins_skew[:-1] + bins_skew[1:]) / 2).round(1).astype(str)
 
+bins_ar1 = np.linspace(
+    deg2_obs_df["t2m_x_ar1"].min(), deg2_obs_df["t2m_x_ar1"].max(), n_bins
+)
+midpoints_ar1 = ((bins_ar1[:-1] + bins_ar1[1:]) / 2).round(1).astype(str)
+
 
 deg2_obs_df = deg2_obs_df.with_columns(
     var_bin_id=pl.col("t2m_x_var")
@@ -129,6 +134,10 @@ deg2_obs_df = deg2_obs_df.with_columns(
     .cast(pl.Float64),
     skew_bin_id=pl.col("t2m_x_skew")
     .cut(breaks=bins_skew[1:-1], labels=midpoints_skew)
+    .cast(pl.String)
+    .cast(pl.Float64),
+    ar1_bin_id=pl.col("t2m_x_ar1")
+    .cut(breaks=bins_ar1[1:-1], labels=midpoints_ar1)
     .cast(pl.String)
     .cast(pl.Float64),
 )
@@ -144,7 +153,7 @@ fig_var_sumheat_obs = fig_scatter(
 ).opts(hv.opts.Scatter(alpha=0.2))
 
 
-# skewness --------------
+# skewness, observed --------------
 n_bins = 20
 bin_size_skew = (
     deg2_obs_df["t2m_x_skew"].max() - deg2_obs_df["t2m_x_skew"].min()
@@ -196,6 +205,10 @@ combined_synth_2deg_df = combined_synth_2deg_df.with_columns(
     .cast(pl.Float64),
     skew_bin_id=pl.col("t2m_x_skew")
     .cut(breaks=bins_skew[1:-1], labels=midpoints_skew)
+    .cast(pl.String)
+    .cast(pl.Float64),
+    ar1_bin_id=pl.col("t2m_x_ar1")
+    .cut(breaks=bins_ar1[1:-1], labels=midpoints_ar1)
     .cast(pl.String)
     .cast(pl.Float64),
 )
@@ -306,7 +319,7 @@ fig_skew_sumheat = (fig_skew_sumheat_synth * fig_skew_sumheat_obs).opts(
     **fig_kwargs,
 )
 
-fig_scatter = (
+fig_scatter_combined = (
     (
         fig_var_hwf
         + fig_var_hwd
@@ -326,12 +339,11 @@ fig_scatter = (
     )
 )
 # fig_scatter
-# hvplot.save(fig_scatter, phelpers.fig_dir / f"fig_2deg_{flags.label}.png")
+# hvplot.save(fig_scatter_combined, phelpers.fig_dir / f"fig_2deg_{flags.label}.png")
 
 # convert to matplotlib and add labels manually
-fig = hv.render(fig_scatter, backend="matplotlib")
-num_panels = len(fig_scatter)
-
+fig = hv.render(fig_scatter_combined, backend="matplotlib")
+num_panels = len(fig_scatter_combined)
 # Keep only main panel axes (exclude colorbar/small helper axes)
 main_axes = sorted(
     fig.axes,
@@ -460,3 +472,106 @@ for metric in metrics:
     results[f"{metric}_high_var"] = [slope_synth_high, slope_obs_high]
 
 results
+
+
+########################################################
+# scatterplots for ar1
+########################################################
+
+# 2deg, observed --------------------------------
+
+# ar1, observed --------------
+n_bins = 20
+bin_size_ar1 = (
+    deg2_obs_df["t2m_x_ar1"].max() - deg2_obs_df["t2m_x_ar1"].min()
+) / n_bins
+
+fig_ar1_hwf_obs = fig_scatter(
+    deg2_obs_df, "t2m_x_ar1", "ar1_bin_id", "HWF", "Observed", "red"
+).opts(hv.opts.Scatter(alpha=0.05))
+fig_ar1_hwd_obs = fig_scatter(
+    deg2_obs_df, "t2m_x_ar1", "ar1_bin_id", "HWD", "Observed", "red"
+).opts(hv.opts.Scatter(alpha=0.05))
+fig_ar1_sumheat_obs = fig_scatter(
+    deg2_obs_df, "t2m_x_ar1", "ar1_bin_id", "sumHeat", "Observed", "red"
+).opts(hv.opts.Scatter(alpha=0.05))
+
+
+# 2 degree, synthetic ---------------------------------------------------
+
+
+# ar1 ----------------------
+fig_ar1_hwf_synth = fig_scatter(
+    combined_synth_2deg_df,
+    "t2m_x_ar1",
+    "ar1_bin_id",
+    "HWF",
+    "Synthetic",
+    "blue",
+    "--",
+).opts(hv.opts.Scatter(alpha=0.01))
+fig_ar1_hwd_synth = fig_scatter(
+    combined_synth_2deg_df,
+    "t2m_x_ar1",
+    "ar1_bin_id",
+    "HWD",
+    "Synthetic",
+    "blue",
+    "--",
+).opts(hv.opts.Scatter(alpha=0.01))
+fig_ar1_sumheat_synth = fig_scatter(
+    combined_synth_2deg_df,
+    "t2m_x_ar1",
+    "ar1_bin_id",
+    "sumHeat",
+    "Synthetic",
+    "blue",
+    "--",
+).opts(hv.opts.Scatter(alpha=0.01))
+
+
+###########
+# combine
+##########
+
+fig_ar1_hwf = (fig_ar1_hwf_synth * fig_ar1_hwf_obs).opts(
+    xlabel="Climatological AR(1)",
+    ylabel="",
+    # ylabel=r"$\Delta$ HWF (days)",
+    xlim=(0, 1),
+    ylim=(-1, 50),
+    show_legend=False,
+    **fig_kwargs,
+)
+fig_ar1_hwd = (fig_ar1_hwd_synth * fig_ar1_hwd_obs).opts(
+    xlabel="Climatological AR(1)",
+    ylabel="",
+    # ylabel=r"$\Delta$ HWD (days)",
+    xlim=(0, 1),
+    ylim=(-2, 20),
+    show_legend=False,
+    **fig_kwargs,
+)
+fig_ar1_sumheat = (fig_ar1_sumheat_synth * fig_ar1_sumheat_obs).opts(
+    xlabel="Climatological AR(1)",
+    ylabel="",
+    # ylabel=r"$\Delta$ sumHeat (°C-days)",
+    xlim=(0, 1),
+    ylim=(-2, 75),
+    show_legend=False,
+    **fig_kwargs,
+)
+
+fig_scatter_ar1 = (
+    (fig_ar1_hwf + fig_ar1_hwd + fig_ar1_sumheat)
+    .cols(3)
+    .opts(
+        shared_axes=False,
+        sublabel_format="",
+        # sublabel_format="({alpha})",
+        # sublabel_position=(0.8, 0.8),
+        # sublabel_size=phelpers.tick_size,
+        **layout_kwargs,
+    )
+)
+# hvplot.save(fig_scatter_ar1, phelpers.fig_dir / "supplemental" / f"fig_2deg_ar1_{flags.label}.png", dpi=200)

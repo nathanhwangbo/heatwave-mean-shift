@@ -48,7 +48,8 @@ height_default = 5
 global_kwargs = dict(
     fontscale=1,
     fontsize={
-        "title": title_size,
+        # "title": title_size,
+        "title": label_size,
         "labels": label_size,
         "ticks": tick_size,
         # "legend": 5,
