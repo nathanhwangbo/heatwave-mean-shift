@@ -117,7 +117,8 @@ thresholds_ref = thresholds_ref.chunk({"lat": 10, "lon": 10})
 
 # ! uncomment to save output
 # ahelpers.write_nc(
-#     thresholds_ref, f"processed_data/thresholds_{flags.ref_years[0]}_{flags.ref_years[1]}_{flags.label}.nc"
+#     thresholds_ref,
+#     f"processed_data/thresholds_{flags.ref_years[0]}_{flags.ref_years[1]}_{flags.label}.nc",
 # )
 
 
@@ -138,7 +139,10 @@ era_land_all_anom = (
 ).drop_vars("dayofyear")
 
 # ! uncomment to save output. this is is the data that's used to calculate heatwave metrics
-# ahelpers.write_nc(era_land_all_anom, f"processed_data/land_anom_{flags.ref_years[0]}_{flags.ref_years[1]}.nc")
+# ahelpers.write_nc(
+#     era_land_all_anom,
+#     f"processed_data/land_anom_{flags.ref_years[0]}_{flags.ref_years[1]}.nc",
+# )
 
 era_land_all_anom["t2m_x"].attrs = {"units": "C"}  # hdp package needs units
 # use c when dealing with anomalies (bc anomalies are the same in either units)
@@ -166,7 +170,8 @@ metrics_all_land = ahelpers.process_heatwave_metrics(metrics_dataset_all)
 
 # ! uncomment to save output
 # ahelpers.write_nc(
-#     metrics_all_land, f"processed_data/hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc"
+#     metrics_all_land,
+#     f"processed_data/hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc",
 # )
 
 
@@ -185,15 +190,19 @@ era_land_new_anom = era_land_all_anom.sel(
     time=slice(str(flags.new_years[0] - 1), str(flags.new_years[1]))
 )
 
-## shifting the mean for each grid cell.
+## shifting the center for each grid cell.
 ## note: this is in anomaly space!! shifted, doy-anomaly removed.
-old_means = era_land_ref_anom["t2m_x"].mean(dim=["time"])
-new_means = era_land_new_anom["t2m_x"].mean(dim=["time"])
-# old_means = era_land_ref["t2m_x"].mean(dim=["time"])
-# new_means = era_land_new["t2m_x"].mean(dim=["time"])
+if flags.use_mean_shift:
+    old_centers = era_land_ref_anom["t2m_x"].mean(dim=["time"])
+    new_centers = era_land_new_anom["t2m_x"].mean(dim=["time"])
+    # old_centers = era_land_ref["t2m_x"].mean(dim=["time"])
+    # new_centers = era_land_new["t2m_x"].mean(dim=["time"])
+else:  # use median
+    old_centers = era_land_ref_anom["t2m_x"].median(dim=["time"])
+    new_centers = era_land_new_anom["t2m_x"].median(dim=["time"])
 
 # update the "time" coordinate in the future to pretend it's the "future"
-era_land_synth_new = (era_land_ref_anom - old_means) + new_means
+era_land_synth_new = (era_land_ref_anom - old_centers) + new_centers
 
 metrics_synth_land = ahelpers.get_synthetic_hw_metrics(
     era_land_ref_anom,

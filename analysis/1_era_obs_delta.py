@@ -1,5 +1,6 @@
 # analyzing the output of 0_era_meanshift.py
 
+from _ssl import HOSTFLAG_ALWAYS_CHECK_SUBJECT
 from changing_heat_extremes import flags
 from changing_heat_extremes import plot_helpers as phelpers
 # from changing_heat_extremes import analysis_helpers as ahelpers
@@ -303,7 +304,13 @@ for ax, lab in zip(map_axes, labels, strict=False):
         fontweight="normal",
     )
 
-# fig.savefig(fig_dir / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png", dpi=200, bbox_inches="tight")
+# ! uncomment to save figure. this is the main output of this script!
+# fig.savefig(
+#     fig_dir
+#     / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png",
+#     dpi=200,
+#     bbox_inches="tight",
+# )
 
 ##########################################3
 # supplemental analyses mentioned in the paper
@@ -333,3 +340,92 @@ xr.corr(
 )
 
 #
+
+
+#################################33
+# mimicking fig 3 of martinez-villalobos et al 2025
+# which look at the relationship between mean shift and heat wave duration
+
+# specifically:
+# x-axis is mean shift / standard deviation
+# y-axis is 99th quantile of heatwave duration (over all heatwaves).
+# - but they define heatwaves differently than us (i.e. no 3 day minimum). So maybe we should shrink the quantile
+##################################
+
+## obs -----------------------
+import pandas as pd
+import hvplot.pandas  # ensure pandas backend is available for scatter
+
+# y-axis: 90th quantile of heatwave duration (over all heatwaves) -> ratio (new / old)
+hwd_q90_old = hw_old_obs["t2m_x.t2m_x_threshold.HWD"].quantile(0.90, dim="time")
+hwd_q90_new = hw_new_obs["t2m_x.t2m_x_threshold.HWD"].quantile(0.90, dim="time")
+hwd_q90_ratio = hwd_q90_new / hwd_q90_old
+
+# (hwd_q90_new - hwd_q90_old).hvplot(clim = (-7, 7), cmap = phelpers.cmap_rdbu, colorbar=True)
+
+
+# x-axis: temperature mean shift / standard deviation
+combined_ds = xr.open_dataset(
+    data_dir / f"moments_ds_{flags.label}.nc"
+)  # grab mean shift and variance
+normalized_mean_shift = combined_ds["t2m_x_mean_diff"] / np.sqrt(
+    combined_ds["t2m_x_var"]
+)
+
+
+# Merge the two DataArrays into a single Dataset for plotting
+scatter_ds = xr.Dataset(
+    {"normalized_mean_shift": normalized_mean_shift, "hwd_q90_ratio": hwd_q90_ratio}
+)
+
+# Flatten and drop NaNs to improve plotting performance
+scatter_df = scatter_ds.to_dataframe().dropna().reset_index()
+
+# Create 10 equal-width bins
+bins = pd.cut(scatter_df["normalized_mean_shift"], bins=10)
+
+# Use the midpoint of each bin as the x-axis value to keep it numeric and sorted
+scatter_df["x_bin_mid"] = bins.apply(lambda x: x.mid).astype(float)
+
+# some messing around to try and keep a numeric x axis
+# unique_mids = sorted(scatter_df["x_bin_mid"].unique())
+# mid_to_label = {mid: f"{i:02d}: {mid:.2f}" for i, mid in enumerate(unique_mids)}
+# scatter_df["x_bin_sorted_label"] = scatter_df["x_bin_mid"].map(mid_to_label)
+# scatter_df.hvplot.box(
+#     y="hwd_q90_ratio",
+#     by="x_bin_sorted_label",
+#     height=450,
+#     width=900,
+#     rot=45,
+#     xlabel="Mean Shift / Standard Deviation (Sorted Bins)",
+#     ylabel="HWD 90th Quantile Ratio (New/Old)",
+#     title="Distribution of Heatwave Duration Response by Mean Shift Bins",
+#     **phelpers.global_kwargs,
+# ).opts(xticks=unique_mids)
+
+import matplotlib.pyplot as plt
+
+# group the ratio by the numeric bin midpoint
+grouped_data = [
+    group["hwd_q90_ratio"].values for name, group in scatter_df.groupby("x_bin_mid")
+]
+positions = sorted(scatter_df["x_bin_mid"].unique().round(2))
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# 3. Create boxplots
+ax.boxplot(
+    grouped_data,
+    positions=positions,
+    widths=0.15,  # Controls width in numeric x-axis units
+    patch_artist=True,
+    medianprops={"color": "black"},
+    boxprops={"facecolor": "lightgray", "alpha": 0.7},
+)
+ax.set_xlabel("Mean Shift / Standard Deviation (Bin Midpoint)")
+ax.set_ylabel("HWD 90th Quantile Ratio (New/Old)")
+ax.set_title("")
+ax.grid(axis="y", linestyle="--", alpha=0.7)
+
+# fig.savefig(
+#     fig_dir / "supplemental" / "boxplot_numeric_x.png", dpi=200, bbox_inches="tight"
+# )

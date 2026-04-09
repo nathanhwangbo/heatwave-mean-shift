@@ -80,9 +80,16 @@ era_land_old = era_land_anom.sel(
 era_land_new = era_land_anom.sel(
     time=slice(str(flags.new_years[0]), str(flags.new_years[1]))
 )
-tmax_mean_diff = (era_land_new.mean(dim="time") - era_land_old.mean(dim="time")).rename(
-    {"t2m_x": "t2m_x_mean_diff"}
-)
+
+# use the mean (vs the median)
+if flags.use_mean_shift:
+    tmax_mean_diff = (
+        era_land_new.mean(dim="time") - era_land_old.mean(dim="time")
+    ).rename({"t2m_x": "t2m_x_mean_diff"})
+else:  # use the median
+    tmax_mean_diff = (
+        era_land_new.median(dim="time") - era_land_old.median(dim="time")
+    ).rename({"t2m_x": "t2m_x_mean_diff"})
 
 ##############################################
 # Calculate climatological moments
