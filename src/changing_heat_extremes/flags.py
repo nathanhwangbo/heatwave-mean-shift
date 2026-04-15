@@ -42,12 +42,14 @@ note: if you only care about `percentile_threshold` and the `hw_def` args, it mi
 # analysis flags
 ####################
 
+## this is the config for the main analysis in the paper --------------------------------
 label = "q90_300"
 use_calendar_summer = True  # if true, use JJA as summer. else use dayofyear mask
 ref_years = [1960, 1990]  # the time period the thresholds are calculated over
 new_years = [1995, 2025]  # the time period we're gonna compare to
 percentile_threshold = 0.9
 hw_def = [[3, 0, 0]]
+use_mean_shift = True  # if false, use the median
 
 
 ##################################################
@@ -55,13 +57,26 @@ hw_def = [[3, 0, 0]]
 # these are in the supplement as sensitivity tests
 ##################################################
 
+## sensitivity to mean shift vs median shift
+# label = "q90_300_median"
+# use_calendar_summer = True  # if true, use JJA as summer. else use dayofyear mask
+# ref_years = [1960, 1990]  # the time period the thresholds are calculated over
+# new_years = [1995, 2025]  # the time period we're gonna compare to
+# percentile_threshold = 0.9
+# hw_def = [[3, 0, 0]]
+# use_mean_shift = False  # if false, use the median # CHANGED (compared to the main config)
+
 ## sensitivity to summer definition --------------------
 # label = "doy_q90_300"
 # use_calendar_summer = False  # CHANGED
 # ref_years = [1960, 1990]
-# new_years = [1995 + 1, 2025]  # CHANGED: + 1 accounts for calendar year wrapping in my modified hdp functions
+# new_years = [
+#     1995 + 1,
+#     2025,
+# ]  # CHANGED: + 1 accounts for calendar year wrapping in my modified hdp functions
 # percentile_threshold = 0.9
-# hw_def = [[3,0,0]]
+# hw_def = [[3, 0, 0]]
+# use_mean_shift = True
 
 ## sensitivity to "extreme heat" definition (i.e. quantile) --------------------------------
 # label = "q95_300"
@@ -69,7 +84,8 @@ hw_def = [[3, 0, 0]]
 # ref_years = [1960, 1990]
 # new_years = [1995, 2025]
 # percentile_threshold = 0.95  # CHANGED
-# hw_def = [[3,0,0]]
+# hw_def = [[3, 0, 0]]
+# use_mean_shift = True
 
 ## sensitivity to heatwave definition --------------------------------
 # label = "q90_200"
@@ -77,7 +93,9 @@ hw_def = [[3, 0, 0]]
 # ref_years = [1960, 1990]
 # new_years = [1995, 2025]
 # percentile_threshold = 0.90
-# hw_def = [[2,0,0]]  # CHANGED
+# hw_def = [[2, 0, 0]]  # CHANGED
+# use_mean_shift = True
+
 
 ## sensitivity to heatwave definition --------------------------------
 # label = "q90_500"
@@ -86,3 +104,4 @@ hw_def = [[3, 0, 0]]
 # new_years = [1995, 2025]
 # percentile_threshold = 0.90
 # hw_def = [[5, 0, 0]]  # CHANGED
+# use_mean_shift = True
