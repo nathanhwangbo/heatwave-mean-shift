@@ -1,19 +1,23 @@
 # analyzing the output of 0_era_meanshift.py
-
-from _ssl import HOSTFLAG_ALWAYS_CHECK_SUBJECT
-from changing_heat_extremes import flags
-from changing_heat_extremes import plot_helpers as phelpers
-# from changing_heat_extremes import analysis_helpers as ahelpers
+from heatwave_mean_shift import flags
+from heatwave_mean_shift import plot_helpers as phelpers
+# from heatwave_mean_shift import analysis_helpers as ahelpers
 
 import numpy as np
 import xarray as xr
+import xskillscore as xs
 import cartopy.crs as ccrs
 import hvplot.xarray  # noqa: F401
 import holoviews as hv
 from pathlib import Path
+import matplotlib.pyplot as plt
+import os
+
 
 hvplot.extension(phelpers.backend_hv)
 
+
+os.makedirs("figures", exist_ok=True)
 fig_dir = Path("figures")
 data_dir = Path("processed_data")
 
@@ -30,16 +34,12 @@ fig_kwargs = dict(
 layout_kwargs = dict(sublabel_format="", tight=True, tight_padding=(1, 17))
 
 
-hw_obs = xr.open_dataset(
-    data_dir
-    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc"
-).sel(
+hw_obs = xr.open_dataset(data_dir / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc").sel(
     percentile=flags.percentile_threshold,
     definition="-".join(map(str, flags.hw_def[0])),
 )
 hw_synth = xr.open_dataset(
-    data_dir
-    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_anom{flags.label}.nc"
+    data_dir / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_anom{flags.label}.nc"
 ).sel(
     percentile=flags.percentile_threshold,
     definition="-".join(map(str, flags.hw_def[0])),
@@ -62,9 +62,7 @@ def get_delta_fig(mean_diff_ds, cmap_hwf_hook, cmap_hwd_hook, cmap_sumheat_hook)
     label_summer is a string (intended either "jja" or "doy") describing how summer was defined in mean_diff_ds
     """
     hwf_delta = mean_diff_ds["t2m_x.t2m_x_threshold.HWF"]
-    horizontal_cbar_hwf = phelpers.horizontal_cbar_hv(
-        clabel=r"$\Delta$ Frequency (days)"
-    )
+    horizontal_cbar_hwf = phelpers.horizontal_cbar_hv(clabel=r"$\Delta$ Frequency (days)")
 
     deltamap_hwf = hwf_delta.hvplot.quadmesh(
         projection=ccrs.PlateCarree(),
@@ -82,9 +80,7 @@ def get_delta_fig(mean_diff_ds, cmap_hwf_hook, cmap_hwd_hook, cmap_sumheat_hook)
 
     # delta in hwd
     hwd_delta = mean_diff_ds["t2m_x.t2m_x_threshold.HWD"]
-    horizontal_cbar_hwd = phelpers.horizontal_cbar_hv(
-        clabel=r"$\Delta$ Duration (days)"
-    )
+    horizontal_cbar_hwd = phelpers.horizontal_cbar_hv(clabel=r"$\Delta$ Duration (days)")
     deltamap_hwd = hwd_delta.hvplot.quadmesh(
         projection=ccrs.PlateCarree(),
         coastline=True,
@@ -100,12 +96,8 @@ def get_delta_fig(mean_diff_ds, cmap_hwf_hook, cmap_hwd_hook, cmap_sumheat_hook)
 
     # delta in heatsum
     heatsum_delta = mean_diff_ds["t2m_x.t2m_x_threshold.sumHeat"]
-    horizontal_cbar_heatsum = phelpers.horizontal_cbar_hv(
-        clabel=r"$\Delta$ Cumulative Heat (°C-days)"
-    )
-    deltamap_heatsum = heatsum_delta.hvplot.quadmesh(
-        projection=ccrs.PlateCarree(), coastline=True, title=""
-    ).opts(
+    horizontal_cbar_heatsum = phelpers.horizontal_cbar_hv(clabel=r"$\Delta$ Cumulative Heat (°C-days)")
+    deltamap_heatsum = heatsum_delta.hvplot.quadmesh(projection=ccrs.PlateCarree(), coastline=True, title="").opts(
         hv.opts.QuadMesh(
             colorbar=False,
             ylim=(-59, None),
@@ -128,9 +120,7 @@ cmap_heatsum_hook = phelpers.cbar_helper_hv(0, 25, cmap=phelpers.cmap_red)
 hw_old_obs = hw_obs.sel(time=slice(str(flags.ref_years[0]), str(flags.ref_years[1])))
 hw_new_obs = hw_obs.sel(time=slice(str(flags.new_years[0]), str(flags.new_years[1])))
 mean_diff_obs = hw_new_obs.mean(dim="time") - hw_old_obs.mean(dim="time")
-figlist_delta_obs = get_delta_fig(
-    mean_diff_obs, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook
-)
+figlist_delta_obs = get_delta_fig(mean_diff_obs, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook)
 
 # make sure order matches get_delta_fig!
 var_list = ["HWF", "HWD", "sumHeat"]  # , "MAX"]
@@ -155,29 +145,22 @@ fig_delta_obs = hv.Layout(
 
 
 # ERA synthetic second half -------------------------------------
-hw_old_synth = hw_synth.sel(
-    time=slice(str(flags.ref_years[0]), str(flags.ref_years[1]))
-)
-hw_new_synth = hw_synth.sel(
-    time=slice(str(flags.new_years[0]), str(flags.new_years[1]))
-)
+hw_old_synth = hw_synth.sel(time=slice(str(flags.ref_years[0]), str(flags.ref_years[1])))
+hw_new_synth = hw_synth.sel(time=slice(str(flags.new_years[0]), str(flags.new_years[1])))
 mean_diff_synth = hw_new_synth.mean(dim="time") - hw_old_synth.mean(dim="time")
-fig_delta_synth_init = get_delta_fig(
-    mean_diff_synth, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook
-)
+fig_delta_synth_init = get_delta_fig(mean_diff_synth, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook)
 
 
 ### also calculate the correlations for each, and add as labels ---
-cor_obs_synth = xr.combine_by_coords(
-    [
-        xr.corr(
-            mean_diff_obs[var],
-            mean_diff_synth[var],
-        )
-        for var in mean_diff_obs.data_vars
-    ]
-)
+lat_weights = np.cos(np.deg2rad(mean_diff_obs.lat))
+_, weights = xr.broadcast(mean_diff_obs, lat_weights)
 
+cor_obs_synth = xr.Dataset(
+    {
+        var: xs.pearson_r(mean_diff_obs[var], mean_diff_synth[var], dim=["lat", "lon"], weights=weights, skipna=True)
+        for var in mean_diff_obs.data_vars
+    }
+)
 
 fig_delta_synth = hv.Layout(
     [
@@ -266,21 +249,6 @@ for i in np.arange(1, len(fig_delta_obs)).tolist():
     fig1 += fig_delta_obs[i] + fig_delta_synth[i] + fig_obs_minus_synth[i]
 fig1 = fig1.cols(3).opts(**layout_kwargs)
 
-# iterate over the subplots and add the label to the title. --
-# weird ordering bc I want to go vertical instead of horizontal
-# letter_ordering = ["a", "d", "g", "b", "e", "h", "c", "f", "i"]
-
-# fig1_updated = phelpers.add_subplot_labels(fig1, labels=letter_ordering)
-
-# fig1_updated = (fig1.cols(3)).opts(
-#     shared_axes=False,
-#     # sublabel_format="({alpha})",
-#     tight=True,
-#     tight_padding=(1, 20),
-#     # sublabel_position=(-0.05, 0.1),
-#     # sublabel_size=phelpers.label_size,
-# )
-# # hvplot.save(fig1_updated, fig_dir / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png")
 
 # add subplot labels in matplotlib code
 fig = hv.render(fig1, backend="matplotlib")
@@ -305,44 +273,85 @@ for ax, lab in zip(map_axes, labels, strict=False):
     )
 
 # ! uncomment to save figure. this is the main output of this script!
-# fig.savefig(
-#     fig_dir
-#     / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png",
-#     dpi=200,
-#     bbox_inches="tight",
-# )
+fig.savefig(
+    fig_dir / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png",
+    dpi=200,
+    bbox_inches="tight",
+)
 
 ##########################################3
 # supplemental analyses mentioned in the paper
 ###########################################3
 
-# correlation between hwf and sumheat changes in the obs
-xr.corr(
+# # correlation between hwf and sumheat changes in the obs ---
+# 0.8186
+xs.pearson_r(
     mean_diff_obs["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_obs["t2m_x.t2m_x_threshold.sumHeat"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
 )
 
-
-xr.corr(
+# 0.9582
+xs.pearson_r(
     mean_diff_obs["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_obs["t2m_x.t2m_x_threshold.HWD"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
 )
 
-# repeated for synthetic
-xr.corr(
+# # repeated for synthetic ---
+# 0.9658
+xs.pearson_r(
     mean_diff_synth["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_synth["t2m_x.t2m_x_threshold.HWD"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
 )
 
-xr.corr(
+# 0.8208
+xs.pearson_r(
     mean_diff_synth["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_synth["t2m_x.t2m_x_threshold.sumHeat"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
 )
 
-#
+# # pattern correlation of the residuals ----
 
+# 0.8675
+xs.pearson_r(
+    obs_minus_synth["t2m_x.t2m_x_threshold.HWF"],
+    obs_minus_synth["t2m_x.t2m_x_threshold.HWD"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
+)
+
+# 0.8936
+xs.pearson_r(
+    obs_minus_synth["t2m_x.t2m_x_threshold.HWF"],
+    obs_minus_synth["t2m_x.t2m_x_threshold.sumHeat"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
+)
+
+# 0.7961
+xs.pearson_r(
+    obs_minus_synth["t2m_x.t2m_x_threshold.HWD"],
+    obs_minus_synth["t2m_x.t2m_x_threshold.sumHeat"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
+)
 
 #################################33
+# SUPPLEMENTAL FIGURE:
 # mimicking fig 3 of martinez-villalobos et al 2025
 # which look at the relationship between mean shift and heat wave duration
 
@@ -353,8 +362,11 @@ xr.corr(
 ##################################
 
 ## obs -----------------------
-import pandas as pd
-import hvplot.pandas  # ensure pandas backend is available for scatter
+import pandas as pd  # noqa
+import hvplot.pandas  # noqa
+
+hvplot.extension(phelpers.backend_hv)
+
 
 # y-axis: 90th quantile of heatwave duration (over all heatwaves) -> ratio (new / old)
 hwd_q90_old = hw_old_obs["t2m_x.t2m_x_threshold.HWD"].quantile(0.90, dim="time")
@@ -365,18 +377,13 @@ hwd_q90_ratio = hwd_q90_new / hwd_q90_old
 
 
 # x-axis: temperature mean shift / standard deviation
-combined_ds = xr.open_dataset(
-    data_dir / f"moments_ds_{flags.label}.nc"
-)  # grab mean shift and variance
-normalized_mean_shift = combined_ds["t2m_x_mean_diff"] / np.sqrt(
-    combined_ds["t2m_x_var"]
-)
+combined_ds = xr.open_dataset(data_dir / f"moments_ds_{flags.label}.nc")  # grab mean shift and variance
+normalized_mean_shift = combined_ds["t2m_x_mean_diff"] / np.sqrt(combined_ds["t2m_x_var"])
+combined_ds["normalized_mean_shift"] = normalized_mean_shift
 
 
 # Merge the two DataArrays into a single Dataset for plotting
-scatter_ds = xr.Dataset(
-    {"normalized_mean_shift": normalized_mean_shift, "hwd_q90_ratio": hwd_q90_ratio}
-)
+scatter_ds = xr.Dataset({"normalized_mean_shift": normalized_mean_shift, "hwd_q90_ratio": hwd_q90_ratio})
 
 # Flatten and drop NaNs to improve plotting performance
 scatter_df = scatter_ds.to_dataframe().dropna().reset_index()
@@ -403,12 +410,9 @@ scatter_df["x_bin_mid"] = bins.apply(lambda x: x.mid).astype(float)
 #     **phelpers.global_kwargs,
 # ).opts(xticks=unique_mids)
 
-import matplotlib.pyplot as plt
 
 # group the ratio by the numeric bin midpoint
-grouped_data = [
-    group["hwd_q90_ratio"].values for name, group in scatter_df.groupby("x_bin_mid")
-]
+grouped_data = [group["hwd_q90_ratio"].values for name, group in scatter_df.groupby("x_bin_mid")]
 positions = sorted(scatter_df["x_bin_mid"].unique().round(2))
 fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -426,6 +430,7 @@ ax.set_ylabel("HWD 90th Quantile Ratio (New/Old)")
 ax.set_title("")
 ax.grid(axis="y", linestyle="--", alpha=0.7)
 
+#! save figure
 # fig.savefig(
 #     fig_dir / "supplemental" / "boxplot_numeric_x.png", dpi=200, bbox_inches="tight"
 # )

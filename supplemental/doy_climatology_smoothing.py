@@ -1,4 +1,4 @@
-from changing_heat_extremes import analysis_helpers as ahelpers
+from heatwave_mean_shift import analysis_helpers as ahelpers
 import xarray as xr
 import hvplot.xarray
 import tastymap

@@ -1,9 +1,14 @@
+from heatwave_mean_shift import flags
+from pathlib import Path
 import cdsapi
 
-dataset = "derived-era5-single-levels-daily-statistics"
+# make a target directory to save downloaded data
+target_dir = Path(flags.era5_path) / "t2m_x_daily"
+target_dir.mkdir(parents=True, exist_ok=True)
 
-first_year = 1950
-last_year = 2025
+dataset = "derived-era5-single-levels-daily-statistics"
+first_year = flags.ref_years[0]  # typically 1950
+last_year = flags.new_years[1]  # typically 2025
 for year in range(first_year, last_year + 1):
     print(f"working on year {year}")
     request = {
@@ -64,6 +69,4 @@ for year in range(first_year, last_year + 1):
     }
 
     client = cdsapi.Client()
-    client.retrieve(dataset, request).download(
-        target=f"D://data//ERA5//t2m_x_daily//t2m_x_daily_{year}.nc"
-    )
+    client.retrieve(dataset, request).download(target=target_dir / f"t2m_x_daily_{year}.nc")

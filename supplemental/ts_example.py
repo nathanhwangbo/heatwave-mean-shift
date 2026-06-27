@@ -5,9 +5,9 @@
 #    meant to illustrate how heatwaves are defined, and how we calculate metrics.
 ##########################################################
 
-from changing_heat_extremes import flags
-from changing_heat_extremes import analysis_helpers as ahelpers
-from changing_heat_extremes import plot_helpers as phelpers
+from heatwave_mean_shift import flags
+from heatwave_mean_shift import analysis_helpers as ahelpers
+from heatwave_mean_shift import plot_helpers as phelpers
 import numpy as np
 import xarray as xr
 import glob

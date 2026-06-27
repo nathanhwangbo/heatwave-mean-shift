@@ -10,8 +10,8 @@ outputs:
 - fig_qbins.png
 """
 
-from changing_heat_extremes import flags
-from changing_heat_extremes import plot_helpers as phelpers
+from heatwave_mean_shift import flags
+from heatwave_mean_shift import plot_helpers as phelpers
 import xarray as xr
 import polars as pl
 import polars.selectors as cs
@@ -38,15 +38,24 @@ layout_kwargs = dict(tight=True, tight_padding=0)
 ###########################################
 
 combined_ds = xr.open_dataset(data_dir / f"moments_ds_{flags.label}.nc")
-combined_df = pl.from_pandas(
-    combined_ds.to_dataframe(), include_index=True
-).drop_nulls()
-
-# combined_ds.plot.scatter(
-#     x="t2m_x_mean_diff", y="t2m_x_skew", hue="t2m_x.t2m_x_threshold.HWF", s=10
-# )
 
 
+# ! flag to replace the mean shift with a normalized version. only used for si fig
+use_normalized_mean_shift = False
+if use_normalized_mean_shift:
+    combined_ds["t2m_x_mean_diff"] = combined_ds["t2m_x_mean_diff"] / np.sqrt(combined_ds["t2m_x_var"])
+
+    xlab = r"$\Delta$ Tx / $\sigma$"
+    flags.label = f"{flags.label}_normalized"
+    main_fig_dir = phelpers.fig_dir / "supplemental"
+    round_digit = 2
+else:
+    xlab = r"$\Delta$ Tx (°C)"
+    main_fig_dir = phelpers.fig_dir
+    round_digit = 1
+
+
+combined_df = pl.from_pandas(combined_ds.to_dataframe(), include_index=True).drop_nulls()
 ##########################################
 # if the above has too many points
 # let's combine points into decile bins
@@ -77,7 +86,7 @@ hw_cols = [name for name in q_df.columns if "threshold" in name]
 qvar_df = (
     q_df.group_by(["t2m_x_mean_diff_q", "t2m_x_var_q"])
     .agg(pl.col(hw_cols).median(), pl.len())
-    .with_columns(cs.numeric().round(1))
+    .with_columns(cs.numeric().round(round_digit))
 )
 
 # make the ordering match what hv.quadmesh is expecting
@@ -88,59 +97,37 @@ qvar_ds = (
 )
 
 # get the boundaries (i.e. including the min)
-mean_diff_qs = np.concatenate(
-    ([q_df["t2m_x_mean_diff"].min()], qvar_ds["t2m_x_mean_diff_q"].values)
-).round(1)
-var_qs = np.concatenate(
-    ([q_df["t2m_x_var"].min()], qvar_ds["t2m_x_var_q"].values)
-).round(1)
+mean_diff_qs = np.concatenate(([q_df["t2m_x_mean_diff"].min()], qvar_ds["t2m_x_mean_diff_q"].values)).round(round_digit)
+var_qs = np.concatenate(([q_df["t2m_x_var"].min()], qvar_ds["t2m_x_var_q"].values)).round(2)
 
 # plot ticks to cut off the big min and max, and linearly between
-tx_lim = (
-    mean_diff_qs[1] - 0.3,
-    mean_diff_qs[-2] + 0.3,
-)  # cut off the huge first and last bin
-tx_xticks = np.linspace(tx_lim[0], tx_lim[1], 5)
+if use_normalized_mean_shift:
+    tx_lim = (
+        mean_diff_qs[1] - 0.1,
+        mean_diff_qs[-2] + 0.1,
+    )  # cut off the huge first and last bin
+else:
+    tx_lim = (
+        mean_diff_qs[1] - 0.3,
+        mean_diff_qs[-2] + 0.3,
+    )  # cut off the huge first and last bin
+tx_xticks = np.linspace(tx_lim[0], tx_lim[1], 5).round(2)
 
 # var_lim = (var_qs[1] - 0.3, var_qs[-2] + 0.3)
 var_yticks = np.linspace(var_qs[0], var_qs[-1], 5)
-
-
-# # mark which boxes have fewer than 100 gridcells
-# small_n_var = qvar_df.filter(pl.col("len") < 100).select(
-#     ["t2m_x_mean_diff_q", "t2m_x_var_q"]
-# )
-
-# # map the box edges to the center
-# mean_diff_midpoints = mean_diff_qs[:-1] + np.diff(mean_diff_qs) / 2
-# var_midpoints = var_qs[:-1] + np.diff(var_qs) / 2
-# x_coords_sorted = np.sort(qvar_ds["t2m_x_mean_diff_q"].values)
-# y_coords_sorted = np.sort(qvar_ds["t2m_x_var_q"].values)
-# x_map = dict(zip(x_coords_sorted, mean_diff_midpoints))
-# y_map = dict(zip(y_coords_sorted, var_midpoints))
-# small_n_var = small_n_var.with_columns([
-#     pl.col("t2m_x_mean_diff_q").replace(x_map).alias("x_center"),
-#     pl.col("t2m_x_var_q").replace(y_map).alias("y_center")
-# ])
-
-# markers_var = hv.Points(small_n_var, kdims=["x_center", "y_center"]).opts(
-#         color="black",
-#         marker="x",
-#         s=10,
-#     )
+var_ylim = (var_qs[0], [var_qs[-1]])
 
 # make the plot
 # hwf_q95 =qvar_ds["t2m_x.t2m_x_threshold.HWF"].quantile(0.95).values
 cbar_hwf = phelpers.cbar_helper_hv(1, 20, num_bins=11, cmap="YlOrRd")
-fig_var_hwf = hv.QuadMesh(
-    (mean_diff_qs, var_qs, qvar_ds["t2m_x.t2m_x_threshold.HWF"])
-).opts(
+fig_var_hwf = hv.QuadMesh((mean_diff_qs, var_qs, qvar_ds["t2m_x.t2m_x_threshold.HWF"])).opts(
     edgecolors="white",
     # xticks=tx_xticks,
     xticks=0,
     yticks=var_yticks,
     colorbar=True,
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
+    ylim=var_ylim,
     # title="(a) Change in HWF",
     xlabel="",
     ylabel="Variance (°C²)",
@@ -153,15 +140,14 @@ fig_var_hwf = hv.QuadMesh(
 # duration
 hwd_q95 = qvar_ds["t2m_x.t2m_x_threshold.HWD"].quantile(0.95).values
 cbar_hwd = phelpers.cbar_helper_hv(0, 7, cmap="YlOrRd")
-fig_var_hwd = hv.QuadMesh(
-    (mean_diff_qs, var_qs, qvar_ds["t2m_x.t2m_x_threshold.HWD"])
-).opts(
+fig_var_hwd = hv.QuadMesh((mean_diff_qs, var_qs, qvar_ds["t2m_x.t2m_x_threshold.HWD"])).opts(
     edgecolors="white",
     # xticks=tx_xticks,
     xticks=0,
     yticks=0,
     colorbar=True,
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
+    ylim=var_ylim,
     # title="(b) $\Delta$ HWD",
     xlabel="",
     ylabel="",
@@ -174,15 +160,14 @@ fig_var_hwd = hv.QuadMesh(
 # sumheat
 hwf_q95 = qvar_ds["t2m_x.t2m_x_threshold.sumHeat"].quantile(0.95).values
 cbar_sumheat = phelpers.cbar_helper_hv(1, 35, cmap="YlOrRd")
-fig_var_sumheat = hv.QuadMesh(
-    (mean_diff_qs, var_qs, qvar_ds["t2m_x.t2m_x_threshold.sumHeat"])
-).opts(
+fig_var_sumheat = hv.QuadMesh((mean_diff_qs, var_qs, qvar_ds["t2m_x.t2m_x_threshold.sumHeat"])).opts(
     edgecolors="white",
     # xticks=tx_xticks,
     xticks=0,
     yticks=0,
     colorbar=True,
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
+    ylim=var_ylim,
     # title=r"(b) $\Delta$ sumHeat",
     xlabel="",
     ylabel="",
@@ -212,21 +197,14 @@ qskew_ds = (
 )
 
 # get the boundaries (i.e. including the min)
-mean_diff_qs = np.concatenate(
-    ([q_df["t2m_x_mean_diff"].min()], qskew_ds["t2m_x_mean_diff_q"].values)
-).round(1)
-skew_qs = np.concatenate(
-    ([q_df["t2m_x_skew"].min()], qskew_ds["t2m_x_skew_q"].values)
-).round(2)
+skew_qs = np.concatenate(([q_df["t2m_x_skew"].min()], qskew_ds["t2m_x_skew_q"].values)).round(2)
 
 # plot ticks excluding the super wide first and last bin, and linearly between
 skew_lim = (skew_qs[1] - 0.3, skew_qs[-2] + 0.3)
 skew_yticks = np.linspace(skew_lim[0], skew_lim[1], 5).round(2)
 
 
-fig_skew_hwf = hv.QuadMesh(
-    (mean_diff_qs, skew_qs, qskew_ds["t2m_x.t2m_x_threshold.HWF"])
-).opts(
+fig_skew_hwf = hv.QuadMesh((mean_diff_qs, skew_qs, qskew_ds["t2m_x.t2m_x_threshold.HWF"])).opts(
     edgecolors="white",
     xticks=tx_xticks,
     yticks=skew_yticks,
@@ -234,8 +212,8 @@ fig_skew_hwf = hv.QuadMesh(
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
     ylim=skew_lim,  # cut off the huge first and last bin (-1.57 -> 1.35)
     # title="(d) $\Delta$ HWF",
-    xlabel=r"$\Delta$ Tx (°C)",
-    ylabel="Skewnes",
+    xlabel=xlab,
+    ylabel="Skewness",
     clabel=r"$\Delta$ HWF (days)",
     hooks=[cbar_hwf, phelpers.ticks_bound_hv("both")],
     cbar_extend="both",
@@ -243,9 +221,7 @@ fig_skew_hwf = hv.QuadMesh(
 )
 
 # duration
-fig_skew_hwd = hv.QuadMesh(
-    (mean_diff_qs, skew_qs, qskew_ds["t2m_x.t2m_x_threshold.HWD"])
-).opts(
+fig_skew_hwd = hv.QuadMesh((mean_diff_qs, skew_qs, qskew_ds["t2m_x.t2m_x_threshold.HWD"])).opts(
     edgecolors="white",
     xticks=tx_xticks,
     yticks=0,
@@ -253,7 +229,7 @@ fig_skew_hwd = hv.QuadMesh(
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
     ylim=skew_lim,  # cut off the huge first and last bin (-1.57 -> 1.35)
     # title="(e) $\Delta$ HWD",
-    xlabel=r"$\Delta$ Tx (°C)",
+    xlabel=xlab,
     ylabel="",
     clabel=r"$\Delta$ HWD (days)",
     hooks=[cbar_hwd, phelpers.ticks_bound_hv("x")],
@@ -262,16 +238,14 @@ fig_skew_hwd = hv.QuadMesh(
 )
 
 # sumheat
-fig_skew_sumheat = hv.QuadMesh(
-    (mean_diff_qs, skew_qs, qskew_ds["t2m_x.t2m_x_threshold.sumHeat"])
-).opts(
+fig_skew_sumheat = hv.QuadMesh((mean_diff_qs, skew_qs, qskew_ds["t2m_x.t2m_x_threshold.sumHeat"])).opts(
     edgecolors="white",
     xticks=tx_xticks,
     yticks=0,
     colorbar=True,
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
     ylim=skew_lim,  # cut off the huge first and last bin (-1.57 -> 1.35)
-    xlabel=r"$\Delta$ Tx (°C)",
+    xlabel=xlab,
     ylabel="",
     clabel=r"$\Delta$ sumHeat (°C-days)",
     hooks=[cbar_sumheat, phelpers.ticks_bound_hv("x")],
@@ -299,21 +273,15 @@ qar1_ds = (
 )
 
 # get the boundaries (i.e. including the min)
-mean_diff_qs = np.concatenate(
-    ([q_df["t2m_x_mean_diff"].min()], qar1_ds["t2m_x_mean_diff_q"].values)
-).round(1)
-ar1_qs = np.concatenate(
-    ([q_df["t2m_x_ar1"].min()], qar1_ds["t2m_x_ar1_q"].values)
-).round(2)
+
+ar1_qs = np.concatenate(([q_df["t2m_x_ar1"].min()], qar1_ds["t2m_x_ar1_q"].values)).round(2)
 
 # plot ticks excluding the super wide first and last bin, and linearly between
 ar1_lim = (ar1_qs[0] + 0.35, ar1_qs[-1] - 0.075)
 ar1_yticks = np.linspace(ar1_lim[0], ar1_lim[1], 5).round(2)
 
 
-fig_ar1_hwf = hv.QuadMesh(
-    (mean_diff_qs, ar1_qs, qar1_ds["t2m_x.t2m_x_threshold.HWF"])
-).opts(
+fig_ar1_hwf = hv.QuadMesh((mean_diff_qs, ar1_qs, qar1_ds["t2m_x.t2m_x_threshold.HWF"])).opts(
     edgecolors="white",
     xticks=tx_xticks,
     yticks=ar1_yticks,
@@ -321,7 +289,7 @@ fig_ar1_hwf = hv.QuadMesh(
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
     ylim=ar1_lim,  # cut off the huge first and last bin (-1.57 -> 1.35)
     # title="(d) $\Delta$ HWF",
-    xlabel=r"$\Delta$ Tx (°C)",
+    xlabel=xlab,
     ylabel="AR(1)",
     clabel=r"$\Delta$ HWF (days)",
     hooks=[cbar_hwf, phelpers.ticks_bound_hv("both")],
@@ -330,9 +298,7 @@ fig_ar1_hwf = hv.QuadMesh(
 )
 
 # duration
-fig_ar1_hwd = hv.QuadMesh(
-    (mean_diff_qs, ar1_qs, qar1_ds["t2m_x.t2m_x_threshold.HWD"])
-).opts(
+fig_ar1_hwd = hv.QuadMesh((mean_diff_qs, ar1_qs, qar1_ds["t2m_x.t2m_x_threshold.HWD"])).opts(
     edgecolors="white",
     xticks=tx_xticks,
     yticks=0,
@@ -340,7 +306,7 @@ fig_ar1_hwd = hv.QuadMesh(
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
     ylim=ar1_lim,  # cut off the huge first and last bin (-1.57 -> 1.35)
     # title="(e) $\Delta$ HWD",
-    xlabel=r"$\Delta$ Tx (°C)",
+    xlabel=xlab,
     ylabel="",
     clabel=r"$\Delta$ HWD (days)",
     hooks=[cbar_hwd, phelpers.ticks_bound_hv("both")],
@@ -349,16 +315,14 @@ fig_ar1_hwd = hv.QuadMesh(
 )
 
 # sumheat
-fig_ar1_sumheat = hv.QuadMesh(
-    (mean_diff_qs, ar1_qs, qar1_ds["t2m_x.t2m_x_threshold.sumHeat"])
-).opts(
+fig_ar1_sumheat = hv.QuadMesh((mean_diff_qs, ar1_qs, qar1_ds["t2m_x.t2m_x_threshold.sumHeat"])).opts(
     edgecolors="white",
     xticks=tx_xticks,
     yticks=0,
     colorbar=True,
     xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
     ylim=ar1_lim,  # cut off the huge first and last bin (-1.57 -> 1.35)
-    xlabel=r"$\Delta$ Tx (°C)",
+    xlabel=xlab,
     ylabel="",
     clabel=r"$\Delta$ sumHeat (°C-days)",
     hooks=[cbar_sumheat, phelpers.ticks_bound_hv("both")],
@@ -368,9 +332,7 @@ fig_ar1_sumheat = hv.QuadMesh(
 
 
 figlist_ar1_qbins = [fig_ar1_hwf, fig_ar1_hwd, fig_ar1_sumheat]
-fig_layout_ar1_qbins = (
-    hv.Layout(figlist_ar1_qbins).cols(3).opts(sublabel_format="", **layout_kwargs)
-)
+fig_layout_ar1_qbins = hv.Layout(figlist_ar1_qbins).cols(3).opts(sublabel_format="", **layout_kwargs)
 # hvplot.save(fig_layout_ar1_qbins, phelpers.fig_dir / "supplemental" / f"fig_qbins_ar1_{flags.label}.png")
 
 
@@ -379,9 +341,7 @@ fig_layout_ar1_qbins = (
 ###########################3
 
 fig_qbins_final = (
-    hv.Layout(figlist_var_qbins + figlist_skew_qbins)
-    .cols(3)
-    .opts(sublabel_format="", **layout_kwargs)
+    hv.Layout(figlist_var_qbins + figlist_skew_qbins).cols(3).opts(sublabel_format="", **layout_kwargs)
     # .opts(
     #     sublabel_format="({alpha})", sublabel_position=(-0.075, 0.75), sublabel_size=phelpers.tick_size, **layout_kwargs
     # )
@@ -422,7 +382,7 @@ for ax, lab in zip(main_axes, labels, strict=False):
     )
 
 # ! this is the main output of this script. uncomment to save
-# fig.savefig(phelpers.fig_dir / f"fig_qbins_{flags.label}.png", dpi=200, bbox_inches="tight")
+fig.savefig(main_fig_dir / f"fig_qbins_{flags.label}.png", dpi=200, bbox_inches="tight")
 
 
 ###################################
@@ -430,73 +390,65 @@ for ax, lab in zip(main_axes, labels, strict=False):
 ####################################
 
 # Figure of gridcell counts -----------------
-cbar_count = phelpers.cbar_helper_hv(0, 200, cmap="YlOrRd")
+cbar_count = phelpers.cbar_helper_hv(0, 5000, cmap="YlOrRd")
 
 fig_var_count = hv.QuadMesh((mean_diff_qs, var_qs, qvar_ds["len"])).opts(
     edgecolors="white",
-    xticks=mean_diff_qs[1::2],
+    xticks=tx_xticks,
     yticks=var_qs[::2],
     colorbar=False,
-    xlim=(
-        mean_diff_qs[1] - 0.3,
-        mean_diff_qs[-2] + 0.3,
-    ),  # cut off the huge first and last bin (-0.8 -> 3.8)
+    xlim=tx_lim,
+    ylim=var_ylim,
     title="Variance",
-    xlabel="Change in Tx (°C)",
+    xlabel=xlab,
     ylabel="Variance (°C²)",
-    hooks=[cbar_count],
-    cbar_extend="both",
+    hooks=[cbar_count, phelpers.ticks_bound_hv("x")],
+    cbar_extend="max",
     **fig_kwargs,
 )
 
 fig_skew_count = hv.QuadMesh((mean_diff_qs, skew_qs, qskew_ds["len"])).opts(
     edgecolors="white",
-    xticks=mean_diff_qs[1::2],
-    yticks=skew_qs[1::2],
+    xticks=tx_xticks,
+    yticks=skew_yticks,
     colorbar=False,
-    xlim=(
-        mean_diff_qs[1] - 0.3,
-        mean_diff_qs[-2] + 0.3,
-    ),  # cut off the huge first and last bin (-0.8 -> 3.8)
-    ylim=(
-        skew_qs[1] - 0.3,
-        skew_qs[-2] + 0.3,
-    ),  # cut off the huge first and last bin (-1.57 -> 1.35)
+    xlim=tx_lim,  # cut off the huge first and last bin (-0.8 -> 3.8)
+    ylim=skew_lim,
     title="Skewness",
-    xlabel="Change in Tx (°C)",
+    xlabel=xlab,
     ylabel="Climatological Skew",
     clabel="Number of Gridcells",
-    hooks=[cbar_count],
-    cbar_extend="both",
+    hooks=[cbar_count, phelpers.ticks_bound_hv("both")],
+    cbar_extend="max",
     **fig_kwargs,
 )
 
 # AR(1)
 fig_ar1_count = hv.QuadMesh((mean_diff_qs, ar1_qs, qar1_ds["len"])).opts(
     edgecolors="white",
-    xticks=mean_diff_qs[1::2],
+    xticks=tx_xticks,
     yticks=ar1_yticks,
     colorbar=True,
-    xlim=(
-        mean_diff_qs[1] - 0.3,
-        mean_diff_qs[-2] + 0.3,
-    ),  # cut off the huge first and last bin (-0.8 -> 3.8)
+    xlim=tx_lim,
     ylim=ar1_lim,
     title="AR(1)",
-    xlabel="Change in Tx (°C)",
+    xlabel=xlab,
     ylabel="Climatological AR(1)",
     clabel="Number of Gridcells",
     hooks=[cbar_count, phelpers.ticks_bound_hv("both")],
-    cbar_extend="both",
+    cbar_extend="max",
     **fig_kwargs,
 )
 
 
-fig_counts = (fig_var_count + fig_skew_count + fig_ar1_count).opts(
-    sublabel_format="", tight=True, tight_padding=2
+fig_counts = (fig_var_count + fig_skew_count + fig_ar1_count).opts(sublabel_format="", tight=True, tight_padding=2)
+
+hvplot.save(
+    fig_counts,
+    phelpers.fig_dir / "supplemental" / f"fig_qbin_counts_{flags.label}.png",
+    dpi=200,
 )
 
-# hvplot.save(fig_counts, phelpers.fig_dir / "supplemental" / "fig_qbin_counts.png", dpi = 200)
 
 ##########################################
 #################################
@@ -505,20 +457,12 @@ fig_counts = (fig_var_count + fig_skew_count + fig_ar1_count).opts(
 ##########################################
 
 # pull out the ~1.1-1.2c bin
-bin_eg = q_df["t2m_x_mean_diff_cat"].unique()[3]
+bin_eg = q_df["t2m_x_mean_diff_cat"].unique()[4]
 bin_eg_df = q_df.filter(pl.col("t2m_x_mean_diff_cat") == bin_eg)
-var_bin_eg_df = (
-    bin_eg_df.group_by("t2m_x_var_q").agg(pl.col(hw_cols).median()).sort("t2m_x_var_q")
-)
-skew_bin_eg_df = (
-    bin_eg_df.group_by("t2m_x_skew_q")
-    .agg(pl.col(hw_cols).median())
-    .sort("t2m_x_skew_q")
-)
+var_bin_eg_df = bin_eg_df.group_by("t2m_x_var_q").agg(pl.col(hw_cols).median()).sort("t2m_x_var_q")
+skew_bin_eg_df = bin_eg_df.group_by("t2m_x_skew_q").agg(pl.col(hw_cols).median()).sort("t2m_x_skew_q")
 
-ar1_bin_eg_df = (
-    bin_eg_df.group_by("t2m_x_ar1_q").agg(pl.col(hw_cols).median()).sort("t2m_x_ar1_q")
-)
+ar1_bin_eg_df = bin_eg_df.group_by("t2m_x_ar1_q").agg(pl.col(hw_cols).median()).sort("t2m_x_ar1_q")
 
 
 ##########################
@@ -544,9 +488,7 @@ for i, (var_name, short_name) in enumerate(metrics_to_plot.items()):
 
     # Align to a 9x9 grid to center the differences
     dz_dx_9x9 = dz_dx_decile.rolling(t2m_x_var_q=2).mean().dropna("t2m_x_var_q")
-    dz_dy_9x9 = (
-        dz_dy_decile.rolling(t2m_x_mean_diff_q=2).mean().dropna("t2m_x_mean_diff_q")
-    )
+    dz_dy_9x9 = dz_dy_decile.rolling(t2m_x_mean_diff_q=2).mean().dropna("t2m_x_mean_diff_q")
 
     # Ratio of the absolute per-decile gradients, converted to log10
     raw_ratio = np.abs(dz_dx_9x9 / dz_dy_9x9)
@@ -564,9 +506,7 @@ for i, (var_name, short_name) in enumerate(metrics_to_plot.items()):
     current_xticks = tx_xticks if is_first else tx_xticks[1:-1]
 
     # Only apply the bounding formatter hook to the first panel
-    current_hooks = (
-        [cbar_ratio, phelpers.ticks_bound_hv("both")] if is_first else [cbar_ratio]
-    )
+    current_hooks = [cbar_ratio, phelpers.ticks_bound_hv("both")] if is_first else [cbar_ratio]
 
     fig_grad = hv.QuadMesh((mean_diff_qs, var_qs, grad_ratio_10x10)).opts(
         colorbar=False,
@@ -583,9 +523,7 @@ for i, (var_name, short_name) in enumerate(metrics_to_plot.items()):
     )
     figlist_grad_ratio.append(fig_grad)
 
-fig_layout_grads = (
-    hv.Layout(figlist_grad_ratio).cols(3).opts(sublabel_format="", **layout_kwargs)
-)
+fig_layout_grads = hv.Layout(figlist_grad_ratio).cols(3).opts(sublabel_format="", **layout_kwargs)
 
 ds_grad_ratio = xr.merge(da_list_grad_ratio)
 # proportion where gradient across mean deciles is larger than across variance deciles
@@ -609,9 +547,7 @@ for i, (var_name, short_name) in enumerate(metrics_to_plot.items()):
 
     # align to a 9x9 grid to center the differences
     dz_dx_9x9 = dz_dx_decile.rolling(t2m_x_skew_q=2).mean().dropna("t2m_x_skew_q")
-    dz_dy_9x9 = (
-        dz_dy_decile.rolling(t2m_x_mean_diff_q=2).mean().dropna("t2m_x_mean_diff_q")
-    )
+    dz_dy_9x9 = dz_dy_decile.rolling(t2m_x_mean_diff_q=2).mean().dropna("t2m_x_mean_diff_q")
 
     # ratio of the absolute per-decile gradients
     # >1 means metric changes more across mean decile, compared to var
@@ -632,16 +568,12 @@ for i, (var_name, short_name) in enumerate(metrics_to_plot.items()):
     current_xticks = tx_xticks if is_first else tx_xticks[1:-1]
 
     # Only apply the bounding formatter hook to the first panel
-    current_hooks = (
-        [cbar_ratio_skew, phelpers.ticks_bound_hv("both")]
-        if is_first
-        else [cbar_ratio_skew]
-    )
+    current_hooks = [cbar_ratio_skew, phelpers.ticks_bound_hv("both")] if is_first else [cbar_ratio_skew]
 
     fig_grad = hv.QuadMesh((mean_diff_qs, skew_qs, grad_ratio_10x10)).opts(
         colorbar=False,
         edgecolors="white",
-        xlabel=r"$\Delta$ Tx (°C)",
+        xlabel=xlab,
         ylabel="Climatological Skew" if is_first else "",
         xlim=tx_lim,
         ylim=skew_lim,
@@ -652,9 +584,7 @@ for i, (var_name, short_name) in enumerate(metrics_to_plot.items()):
     )
     figlist_grad_ratio_skew.append(fig_grad)
 
-fig_layout_grads_skew = (
-    hv.Layout(figlist_grad_ratio_skew).cols(3).opts(sublabel_format="", **layout_kwargs)
-)
+fig_layout_grads_skew = hv.Layout(figlist_grad_ratio_skew).cols(3).opts(sublabel_format="", **layout_kwargs)
 ds_grad_ratio_skew = xr.merge(da_list_grad_ratio_skew)
 
 # proportion where gradient across mean deciles is larger than across skewness deciles
@@ -665,9 +595,7 @@ np.mean(ds_grad_ratio_skew > 0).values
 figlist_combined = figlist_grad_ratio + figlist_grad_ratio_skew
 
 # Layout in 3 columns (which creates 2 rows)
-fig_layout_combined = (
-    hv.Layout(figlist_combined).cols(3).opts(sublabel_format="", **layout_kwargs)
-)
+fig_layout_combined = hv.Layout(figlist_combined).cols(3).opts(sublabel_format="", **layout_kwargs)
 
 
 # 1. Render to matplotlib
@@ -718,3 +646,22 @@ cbar_combined.set_label(cbar_label, size=phelpers.label_size)
 
 #
 # fig_combined_mp.savefig(phelpers.fig_dir / f"fig_gradient_ratios_{flags.label}.png", dpi=200, bbox_inches="tight")
+
+
+####################################################
+# correlation between mean shift and mean shift / climatological var
+
+# to demonstrate that mean shift drives
+#####################################################
+import xskillscore as xs
+
+lat_weights = np.cos(np.deg2rad(combined_ds["lat"]))
+_, weights = xr.broadcast(lat_weights, combined_ds["t2m_x_mean_diff"])
+combined_ds["normalized_shift"] = combined_ds["t2m_x_mean_diff"] / np.sqrt(combined_ds["t2m_x_var"])
+xs.pearson_r(
+    combined_ds["t2m_x_mean_diff"],
+    combined_ds["normalized_shift"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
+).values

@@ -2,7 +2,7 @@
 Demonstrating data quality issues in central Africa in ERA daily maximum, in the 1960s
 """
 
-from changing_heat_extremes import plot_helpers as phelpers
+from heatwave_mean_shift import plot_helpers as phelpers
 import regionmask
 import glob
 import xarray as xr

@@ -8,7 +8,7 @@
 #   so we plot an avg of the q90 threshold over the periods we're interested in (JJA in north hemsiphere and DJF in southern hemisphere)
 #   using both of the reference periods, and compare
 ##################################################################################################
-from changing_heat_extremes import analysis_helpers as ahelpers
+from heatwave_mean_shift import analysis_helpers as ahelpers
 import xarray as xr
 import numpy as np
 import glob

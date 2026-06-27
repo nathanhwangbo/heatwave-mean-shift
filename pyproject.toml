@@ -1,6 +1,6 @@
 [project]
-dependencies = []
-name = "changing-heat-extremes"
+dependencies = ["hdp-python @ git+https://github.com/nathanhwangbo/HDP.git"]
+name = "heatwave-mean-shift"
 requires-python = ">= 3.11"
 version = "0.1.0"
 
@@ -8,15 +8,36 @@ version = "0.1.0"
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64"]
 
 [tool.pixi.pypi-dependencies]
-changing_heat_extremes = { path = ".", editable = true }
-hdp-python = {path = "/home/nathan/Projects/HDP", editable = true}
+heatwave_mean_shift = { path = ".", editable = true }
+# hdp-python = {path = "/home/nathan/Projects/HDP", editable = true}
 
 [tool.pixi.tasks]
+# individual tasks (one per script)
+dl_data = "python analysis/00_get_era_daily_tmax.py"
+regrid_era = "python analysis/01_process_era.py"
+get_climatology = "python analysis/02_era_climatology.py"
+get_hw_metrics = "python analysis/0_era_meanshift.py"
+plot_hw_meanshift = "python analysis/1_era_obs_delta.py"
+get_moments = "python analysis/2a_get_moments.py"
+plot_moments = "python analysis/2b_moment_maps.py"
+plot_heatmaps = "python analysis/2c_heatmap_figs.py"
+plot_scatter = "python analysis/2d_scatter_figs.py"
+
+
+
+# pipeline tasks that chains individual tasks together (e.g. pixi run analysis-pipeline)
+dl-pipeline = { cmd = "echo 'Data download pipeline complete!'", depends-on = ["dl_data", "regrid_era"] }
+processing-pipeline = { cmd = "echo 'Processing pipeline complete!'", depends-on = ["get_climatology", "get_hw_metrics", "get_moments"] }
+plotting-pipeline = { cmd = "echo 'Plotting pipeline complete!'", depends-on = ["plot_hw_meanshift", "plot_moments", "plot_heatmaps", "plot_scatter"] }
+
 
 [tool.pixi.activation.env]
 # needed to fix a common error when importing regionmask / geopandas
@@ -45,9 +66,10 @@ cdsapi = ">=0.7.7,<0.8"
 xesmf = ">=0.9.2,<0.10"
 cartopy = ">=0.25.0,<0.26"
 polars = ">=1.38.1,<2"
-flox = ">=0.11.1,<0.12"
+flox = ">=0.11.2,<0.12"
 rioxarray = ">=0.21.0,<0.22"
 s3fs = ">=2026.2.0,<2027"
+xskillscore = ">=0.0.29,<0.0.30"
 
 
 
