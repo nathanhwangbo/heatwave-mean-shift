@@ -35,10 +35,18 @@ lat_weights = np.cos(np.deg2rad(combined_ds.lat))
 _, weights = xr.broadcast(combined_ds, lat_weights)
 
 cor_mean_diff_var = xs.pearson_r(
-    combined_ds["t2m_x_mean_diff"], combined_ds["t2m_x_var"], dim=["lat", "lon"], weights=weights, skipna=True
+    combined_ds["t2m_x_mean_diff"],
+    combined_ds["t2m_x_var"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
 ).values.round(2)
 cor_mean_diff_skew = xs.pearson_r(
-    combined_ds["t2m_x_mean_diff"], combined_ds["t2m_x_skew"], dim=["lat", "lon"], weights=weights, skipna=True
+    combined_ds["t2m_x_mean_diff"],
+    combined_ds["t2m_x_skew"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
 ).values.round(2)
 
 # shared plotting arguments
@@ -88,8 +96,12 @@ fig_meanshift = (
 ################
 
 
-cbar_kwargs_var = phelpers.cbar_helper_hv(0, 50, cmap=phelpers.reds_cmap, extension=phelpers.backend_hv)
-horizontal_cbar_var = phelpers.horizontal_cbar_hv(clabel="Climatological Variance (°C²)", shrink=0.7)
+cbar_kwargs_var = phelpers.cbar_helper_hv(
+    0, 50, cmap=phelpers.reds_cmap, extension=phelpers.backend_hv
+)
+horizontal_cbar_var = phelpers.horizontal_cbar_hv(
+    clabel="Climatological Variance (°C²)", shrink=0.7
+)
 
 fig_var = (
     combined_ds["t2m_x_var"]
@@ -117,8 +129,12 @@ fig_var_final = (fig_var * var_text).opts(ylim=(-59, 80), xlim=(-180, 180))
 # skew shift map
 ################
 
-cbar_kwargs_skew = phelpers.cbar_helper_hv(-1.1, 0.5, cmap="RdBu_r", cmap_center=0, extension=phelpers.backend_hv)
-horizontal_cbar_skew = phelpers.horizontal_cbar_hv(clabel="Climatological Skewness", shrink=0.7)
+cbar_kwargs_skew = phelpers.cbar_helper_hv(
+    -1.1, 0.5, cmap="RdBu_r", cmap_center=0, extension=phelpers.backend_hv
+)
+horizontal_cbar_skew = phelpers.horizontal_cbar_hv(
+    clabel="Climatological Skewness", shrink=0.7
+)
 fig_skew = (
     combined_ds["t2m_x_skew"]
     .hvplot.quadmesh(**qm_kwargs)
@@ -243,11 +259,19 @@ fig.savefig(fig_dir / f"fig_moments_{flags.label}.png", dpi=200, bbox_inches="ti
 # # autocorrelation map
 
 cor_mean_diff_ar1 = xs.pearson_r(
-    combined_ds["t2m_x_mean_diff"], combined_ds["t2m_x_ar1"], dim=["lat", "lon"], weights=weights, skipna=True
+    combined_ds["t2m_x_mean_diff"],
+    combined_ds["t2m_x_ar1"],
+    dim=["lat", "lon"],
+    weights=weights,
+    skipna=True,
 ).values.round(2)
 
-cbar_kwargs_ar = phelpers.cbar_helper_hv(0.5, 0.9, cmap=phelpers.reds_cmap, extension=phelpers.backend_hv)
-horizontal_cbar_ar = phelpers.horizontal_cbar_hv(clabel="Climatological AR(1)", shrink=0.7)
+cbar_kwargs_ar = phelpers.cbar_helper_hv(
+    0.5, 0.9, cmap=phelpers.reds_cmap, extension=phelpers.backend_hv
+)
+horizontal_cbar_ar = phelpers.horizontal_cbar_hv(
+    clabel="Climatological AR(1)", shrink=0.7
+)
 fig_ar = (
     combined_ds["t2m_x_ar1"]
     .hvplot.quadmesh(**qm_kwargs)
@@ -268,4 +292,6 @@ ar_text = hv.Text(
 )
 
 fig_ar_final = (fig_ar * ar_text).opts(ylim=(-59, 80), xlim=(-180, 180))
-# # hvplot.save(fig_ar_final, fig_dir / "supplemental" /  f"fig_ar_map_{flags.label}.png", dpi = 200)
+hvplot.save(
+    fig_ar_final, fig_dir / "supplemental" / f"fig_ar_map_{flags.label}.png", dpi=200
+)

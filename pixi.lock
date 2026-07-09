@@ -1054,13 +1054,6 @@ packages:
   - pkg:pypi/cftime?source=hash-mapping
   size: 438385
   timestamp: 1768510929901
-- pypi: ./
-  name: changing-heat-extremes
-  version: 0.1.0
-  sha256: 68740b95e91b697084eaffe0e0f938d4c65cbe1cbfe1666ec67878e6825b307c
-  requires_dist:
-  - hdp-python @ git+https://github.com/nathanhwangbo/HDP.git
-  requires_python: '>=3.11'
 - conda: https://conda.anaconda.org/conda-forge/noarch/charset-normalizer-3.4.4-pyhd8ed1ab_0.conda
   sha256: b32f8362e885f1b8417bac2b3da4db7323faa12d5db62b7fd6691c02d60d6f59
   md5: a22d1fd9bf98827e280a02875d9a007a
@@ -1746,6 +1739,13 @@ packages:
   - ipywidgets
   - nbformat
   requires_python: '>=3.12.3'
+- pypi: ./
+  name: heatwave-mean-shift
+  version: 0.1.0
+  sha256: 7588d7461a00e4845c861b8de8c21b1506becc279eb3fbdc0768b30e58458122
+  requires_dist:
+  - hdp-python @ git+https://github.com/nathanhwangbo/HDP.git
+  requires_python: '>=3.11'
 - conda: https://conda.anaconda.org/conda-forge/noarch/holoviews-1.22.1-pyhd8ed1ab_0.conda
   sha256: 598c989ceb11bba5c0c142b8394016ddb26153a02e8275eb045985913c72beaf
   md5: 32bc3daa3fa9619d84e634b4515f564a

@@ -18,7 +18,12 @@ hvplot.extension(phelpers.backend_hv)
 
 
 os.makedirs("figures", exist_ok=True)
-fig_dir = Path("figures")
+
+# q90_300 is the main text config.
+if flags.label == "q90_300":
+    fig_dir = Path("figures")
+else:
+    fig_dir = Path("figures") / "supplemental"
 data_dir = Path("processed_data")
 
 
@@ -34,12 +39,16 @@ fig_kwargs = dict(
 layout_kwargs = dict(sublabel_format="", tight=True, tight_padding=(1, 17))
 
 
-hw_obs = xr.open_dataset(data_dir / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc").sel(
+hw_obs = xr.open_dataset(
+    data_dir
+    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc"
+).sel(
     percentile=flags.percentile_threshold,
     definition="-".join(map(str, flags.hw_def[0])),
 )
 hw_synth = xr.open_dataset(
-    data_dir / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_anom{flags.label}.nc"
+    data_dir
+    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_anom{flags.label}.nc"
 ).sel(
     percentile=flags.percentile_threshold,
     definition="-".join(map(str, flags.hw_def[0])),
@@ -62,7 +71,9 @@ def get_delta_fig(mean_diff_ds, cmap_hwf_hook, cmap_hwd_hook, cmap_sumheat_hook)
     label_summer is a string (intended either "jja" or "doy") describing how summer was defined in mean_diff_ds
     """
     hwf_delta = mean_diff_ds["t2m_x.t2m_x_threshold.HWF"]
-    horizontal_cbar_hwf = phelpers.horizontal_cbar_hv(clabel=r"$\Delta$ Frequency (days)")
+    horizontal_cbar_hwf = phelpers.horizontal_cbar_hv(
+        clabel=r"$\Delta$ Frequency (days)"
+    )
 
     deltamap_hwf = hwf_delta.hvplot.quadmesh(
         projection=ccrs.PlateCarree(),
@@ -80,7 +91,9 @@ def get_delta_fig(mean_diff_ds, cmap_hwf_hook, cmap_hwd_hook, cmap_sumheat_hook)
 
     # delta in hwd
     hwd_delta = mean_diff_ds["t2m_x.t2m_x_threshold.HWD"]
-    horizontal_cbar_hwd = phelpers.horizontal_cbar_hv(clabel=r"$\Delta$ Duration (days)")
+    horizontal_cbar_hwd = phelpers.horizontal_cbar_hv(
+        clabel=r"$\Delta$ Duration (days)"
+    )
     deltamap_hwd = hwd_delta.hvplot.quadmesh(
         projection=ccrs.PlateCarree(),
         coastline=True,
@@ -96,8 +109,12 @@ def get_delta_fig(mean_diff_ds, cmap_hwf_hook, cmap_hwd_hook, cmap_sumheat_hook)
 
     # delta in heatsum
     heatsum_delta = mean_diff_ds["t2m_x.t2m_x_threshold.sumHeat"]
-    horizontal_cbar_heatsum = phelpers.horizontal_cbar_hv(clabel=r"$\Delta$ Cumulative Heat (°C-days)")
-    deltamap_heatsum = heatsum_delta.hvplot.quadmesh(projection=ccrs.PlateCarree(), coastline=True, title="").opts(
+    horizontal_cbar_heatsum = phelpers.horizontal_cbar_hv(
+        clabel=r"$\Delta$ Cumulative Heat (°C-days)"
+    )
+    deltamap_heatsum = heatsum_delta.hvplot.quadmesh(
+        projection=ccrs.PlateCarree(), coastline=True, title=""
+    ).opts(
         hv.opts.QuadMesh(
             colorbar=False,
             ylim=(-59, None),
@@ -120,7 +137,9 @@ cmap_heatsum_hook = phelpers.cbar_helper_hv(0, 25, cmap=phelpers.cmap_red)
 hw_old_obs = hw_obs.sel(time=slice(str(flags.ref_years[0]), str(flags.ref_years[1])))
 hw_new_obs = hw_obs.sel(time=slice(str(flags.new_years[0]), str(flags.new_years[1])))
 mean_diff_obs = hw_new_obs.mean(dim="time") - hw_old_obs.mean(dim="time")
-figlist_delta_obs = get_delta_fig(mean_diff_obs, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook)
+figlist_delta_obs = get_delta_fig(
+    mean_diff_obs, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook
+)
 
 # make sure order matches get_delta_fig!
 var_list = ["HWF", "HWD", "sumHeat"]  # , "MAX"]
@@ -145,10 +164,16 @@ fig_delta_obs = hv.Layout(
 
 
 # ERA synthetic second half -------------------------------------
-hw_old_synth = hw_synth.sel(time=slice(str(flags.ref_years[0]), str(flags.ref_years[1])))
-hw_new_synth = hw_synth.sel(time=slice(str(flags.new_years[0]), str(flags.new_years[1])))
+hw_old_synth = hw_synth.sel(
+    time=slice(str(flags.ref_years[0]), str(flags.ref_years[1]))
+)
+hw_new_synth = hw_synth.sel(
+    time=slice(str(flags.new_years[0]), str(flags.new_years[1]))
+)
 mean_diff_synth = hw_new_synth.mean(dim="time") - hw_old_synth.mean(dim="time")
-fig_delta_synth_init = get_delta_fig(mean_diff_synth, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook)
+fig_delta_synth_init = get_delta_fig(
+    mean_diff_synth, cmap_hwf_hook, cmap_hwd_hook, cmap_heatsum_hook
+)
 
 
 ### also calculate the correlations for each, and add as labels ---
@@ -157,7 +182,13 @@ _, weights = xr.broadcast(mean_diff_obs, lat_weights)
 
 cor_obs_synth = xr.Dataset(
     {
-        var: xs.pearson_r(mean_diff_obs[var], mean_diff_synth[var], dim=["lat", "lon"], weights=weights, skipna=True)
+        var: xs.pearson_r(
+            mean_diff_obs[var],
+            mean_diff_synth[var],
+            dim=["lat", "lon"],
+            weights=weights,
+            skipna=True,
+        )
         for var in mean_diff_obs.data_vars
     }
 )
@@ -224,8 +255,9 @@ fig_obs_minus_synth_init[2].opts(
 )
 
 
-# add in mean absolute error over the map
-mean_abs_diff = abs(obs_minus_synth).mean()
+# add in mean absolute error over the map. reuse the lat weights from above
+# mean_abs_diff = abs(obs_minus_synth)
+mean_abs_diff = abs(obs_minus_synth).weighted(weights).mean(skipna=True)
 
 fig_obs_minus_synth = hv.Layout(
     [
@@ -274,7 +306,8 @@ for ax, lab in zip(map_axes, labels, strict=False):
 
 # ! uncomment to save figure. this is the main output of this script!
 fig.savefig(
-    fig_dir / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png",
+    fig_dir
+    / f"fig_meanshift_{flags.label}_ref{flags.ref_years[0]}_{flags.ref_years[1]}.png",
     dpi=200,
     bbox_inches="tight",
 )
@@ -284,7 +317,7 @@ fig.savefig(
 ###########################################3
 
 # # correlation between hwf and sumheat changes in the obs ---
-# 0.8186
+# 0.8186 (using the maintext flag config)
 xs.pearson_r(
     mean_diff_obs["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_obs["t2m_x.t2m_x_threshold.sumHeat"],
@@ -293,7 +326,7 @@ xs.pearson_r(
     skipna=True,
 )
 
-# 0.9582
+# 0.9582 (using the maintext flag config)
 xs.pearson_r(
     mean_diff_obs["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_obs["t2m_x.t2m_x_threshold.HWD"],
@@ -303,7 +336,7 @@ xs.pearson_r(
 )
 
 # # repeated for synthetic ---
-# 0.9658
+# 0.9658 (using the maintext flag config)
 xs.pearson_r(
     mean_diff_synth["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_synth["t2m_x.t2m_x_threshold.HWD"],
@@ -312,7 +345,7 @@ xs.pearson_r(
     skipna=True,
 )
 
-# 0.8208
+# 0.8208 (using the maintext flag config)
 xs.pearson_r(
     mean_diff_synth["t2m_x.t2m_x_threshold.HWF"],
     mean_diff_synth["t2m_x.t2m_x_threshold.sumHeat"],
@@ -323,7 +356,7 @@ xs.pearson_r(
 
 # # pattern correlation of the residuals ----
 
-# 0.8675
+# 0.8675 (using the maintext flag config)
 xs.pearson_r(
     obs_minus_synth["t2m_x.t2m_x_threshold.HWF"],
     obs_minus_synth["t2m_x.t2m_x_threshold.HWD"],
@@ -332,7 +365,7 @@ xs.pearson_r(
     skipna=True,
 )
 
-# 0.8936
+# 0.8936 (using the maintext flag config)
 xs.pearson_r(
     obs_minus_synth["t2m_x.t2m_x_threshold.HWF"],
     obs_minus_synth["t2m_x.t2m_x_threshold.sumHeat"],
@@ -341,7 +374,7 @@ xs.pearson_r(
     skipna=True,
 )
 
-# 0.7961
+# 0.7961 (using the maintext flag config)
 xs.pearson_r(
     obs_minus_synth["t2m_x.t2m_x_threshold.HWD"],
     obs_minus_synth["t2m_x.t2m_x_threshold.sumHeat"],
@@ -377,13 +410,19 @@ hwd_q90_ratio = hwd_q90_new / hwd_q90_old
 
 
 # x-axis: temperature mean shift / standard deviation
-combined_ds = xr.open_dataset(data_dir / f"moments_ds_{flags.label}.nc")  # grab mean shift and variance
-normalized_mean_shift = combined_ds["t2m_x_mean_diff"] / np.sqrt(combined_ds["t2m_x_var"])
+combined_ds = xr.open_dataset(
+    data_dir / f"moments_ds_{flags.label}.nc"
+)  # grab mean shift and variance
+normalized_mean_shift = combined_ds["t2m_x_mean_diff"] / np.sqrt(
+    combined_ds["t2m_x_var"]
+)
 combined_ds["normalized_mean_shift"] = normalized_mean_shift
 
 
 # Merge the two DataArrays into a single Dataset for plotting
-scatter_ds = xr.Dataset({"normalized_mean_shift": normalized_mean_shift, "hwd_q90_ratio": hwd_q90_ratio})
+scatter_ds = xr.Dataset(
+    {"normalized_mean_shift": normalized_mean_shift, "hwd_q90_ratio": hwd_q90_ratio}
+)
 
 # Flatten and drop NaNs to improve plotting performance
 scatter_df = scatter_ds.to_dataframe().dropna().reset_index()
@@ -412,7 +451,9 @@ scatter_df["x_bin_mid"] = bins.apply(lambda x: x.mid).astype(float)
 
 
 # group the ratio by the numeric bin midpoint
-grouped_data = [group["hwd_q90_ratio"].values for name, group in scatter_df.groupby("x_bin_mid")]
+grouped_data = [
+    group["hwd_q90_ratio"].values for name, group in scatter_df.groupby("x_bin_mid")
+]
 positions = sorted(scatter_df["x_bin_mid"].unique().round(2))
 fig, ax = plt.subplots(figsize=(10, 6))
 

@@ -54,11 +54,13 @@ note: if you only care about `percentile_threshold` and the `hw_def` args, it mi
 # analysis flags
 ####################
 
-## this is the config for the main analysis in the paper --------------------------------
+# this is the config for the main analysis in the paper --------------------------------
 label = "q90_300"
 use_1x1 = False  # if true, use 1x1 degree regridded data. else use native ERA5 grid
 use_calendar_summer = True  # if true, use JJA as summer. else use dayofyear mask
-use_ref_years_for_climatology = False  # if false, use all years to calculate day-of-year climatology
+use_ref_years_for_climatology = (
+    False  # if false, use all years to calculate climatology
+)
 ref_years = [1960, 1990]  # the time period the thresholds are calculated over
 new_years = [1995, 2025]  # the time period we're gonna compare to
 percentile_threshold = 0.9
@@ -71,21 +73,25 @@ era5_path = "/home/nhwangbo/data_to_organize_later/ERA5"  # where we want to sav
 # these are in the supplement as sensitivity tests
 ##################################################
 
-## sensitivity to mean shift vs median shift
+# # sensitivity to mean shift vs median shift
 # label = "q90_300_median"
 # use_1x1 = True
 # use_calendar_summer = True  # if true, use JJA as summer. else use dayofyear mask
+# use_ref_years_for_climatology = False
 # ref_years = [1960, 1990]  # the time period the thresholds are calculated over
 # new_years = [1995, 2025]  # the time period we're gonna compare to
 # percentile_threshold = 0.9
 # hw_def = [[3, 0, 0]]
-# use_mean_shift = False  # if false, use the median # CHANGED (compared to the main config)
+# use_mean_shift = (
+#     False  # if false, use the median # CHANGED (compared to the main config)
+# )
 # era5_path = "/home/nhwangbo/data_to_organize_later/ERA5"
 
 ## sensitivity to summer definition --------------------
 # label = "doy_q90_300"
 # use_1x1 = True
 # use_calendar_summer = False  # CHANGED
+# use_ref_years_for_climatology = False
 # ref_years = [1960, 1990]
 # new_years = [
 #     1995 + 1,
@@ -100,6 +106,7 @@ era5_path = "/home/nhwangbo/data_to_organize_later/ERA5"  # where we want to sav
 # label = "q95_300"
 # use_1x1 = True
 # use_calendar_summer = True
+# use_ref_years_for_climatology = False
 # ref_years = [1960, 1990]
 # new_years = [1995, 2025]
 # percentile_threshold = 0.95  # CHANGED
@@ -111,6 +118,7 @@ era5_path = "/home/nhwangbo/data_to_organize_later/ERA5"  # where we want to sav
 # label = "q90_200"
 # use_1x1 = True
 # use_calendar_summer = True
+# use_ref_years_for_climatology = False
 # ref_years = [1960, 1990]
 # new_years = [1995, 2025]
 # percentile_threshold = 0.90
@@ -122,6 +130,7 @@ era5_path = "/home/nhwangbo/data_to_organize_later/ERA5"  # where we want to sav
 # label = "q90_500"
 # use_1x1 = True
 # use_calendar_summer = True
+# use_ref_years_for_climatology = False
 # ref_years = [1960, 1990]
 # new_years = [1995, 2025]
 # percentile_threshold = 0.90
@@ -140,7 +149,6 @@ era5_path = "/home/nhwangbo/data_to_organize_later/ERA5"  # where we want to sav
 # hw_def = [[3, 0, 0]]
 # use_mean_shift = True  # if false, use the median
 # era5_path = "/home/nhwangbo/data_to_organize_later/ERA5"
-
 
 # print out all of the flags whenever this module is imported (so always)
 if __name__ != "__main__":  # Only print when imported, not when run directly

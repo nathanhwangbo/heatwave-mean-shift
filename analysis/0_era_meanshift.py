@@ -86,7 +86,9 @@ else:
 # fixing formatting for the hdp package
 era["t2m_x"].attrs = {"units": "K"}  # hdp package needs units
 era = era.convert_calendar(calendar="noleap", use_cftime=True)
-era = era.sel(lat=slice(-60, 80)).chunk({"time": -1, "lat": 30, "lon": 30})  # matching karen's doy mask
+era = era.sel(lat=slice(-60, 80)).chunk(
+    {"time": -1, "lat": 30, "lon": 30}
+)  # matching karen's doy mask
 
 # convert to (-180, 180) lon.
 era = era.assign_coords(lon=(((era.lon + 180) % 360) - 180)).sortby("lon")
@@ -101,7 +103,10 @@ era_land = ahelpers.add_landmask(era)  # .compute()
 #### calculate doy thresholds, and smooth the threshold ---------
 ##################################################################
 
-thresholds_path = processed_data_path / f"thresholds_{flags.ref_years[0]}_{flags.ref_years[1]}_{flags.label}.nc"
+thresholds_path = (
+    processed_data_path
+    / f"thresholds_{flags.ref_years[0]}_{flags.ref_years[1]}_{flags.label}.nc"
+)
 
 # skip calculating thresholds if precomputed, to save time.
 if thresholds_path.exists():
@@ -110,16 +115,24 @@ if thresholds_path.exists():
 else:
     print("calculating thresholds")
 
-    era_land_ref_years = era_land.sel(time=slice(str(flags.ref_years[0] - 1), str(flags.ref_years[1])))
+    era_land_ref_years = era_land.sel(
+        time=slice(str(flags.ref_years[0] - 1), str(flags.ref_years[1]))
+    )
     # take doy anomalies
     ref_doy_climatology = ahelpers.fourier_climatology_smoother(
         era_land_ref_years["t2m_x"], n_time=365, n_bases=5
     ).chunk({"dayofyear": -1, "lat": 30, "lon": 30})
-    era_land_ref_anom = (era_land_ref_years.groupby("time.dayofyear") - ref_doy_climatology).drop_vars("dayofyear")
-    era_land_ref_anom["t2m_x"].attrs = {"units": "C"}  # hdp package needs units. K or C is same for anoms
+    era_land_ref_anom = (
+        era_land_ref_years.groupby("time.dayofyear") - ref_doy_climatology
+    ).drop_vars("dayofyear")
+    era_land_ref_anom["t2m_x"].attrs = {
+        "units": "C"
+    }  # hdp package needs units. K or C is same for anoms
 
     # conversion to celcius
-    measures_ref = hdp.measure.format_standard_measures(temp_datasets=[era_land_ref_anom["t2m_x"]])
+    measures_ref = hdp.measure.format_standard_measures(
+        temp_datasets=[era_land_ref_anom["t2m_x"]]
+    )
     thresholds_ref_unsmooth = hdp.threshold.compute_thresholds(
         measures_ref, percentiles=[flags.percentile_threshold], rolling_window_size=7
     ).compute()
@@ -127,7 +140,9 @@ else:
     ## smoothing out the the threshold climatology as well --------
 
     thresholds_ref_smoothed = ahelpers.fourier_climatology_smoother(
-        thresholds_ref_unsmooth["t2m_x_threshold"].sel(percentile=flags.percentile_threshold).drop_vars("percentile"),
+        thresholds_ref_unsmooth["t2m_x_threshold"]
+        .sel(percentile=flags.percentile_threshold)
+        .drop_vars("percentile"),
         n_time=365,
         n_bases=5,
     )
@@ -159,20 +174,34 @@ else:
 # time period ALL 1960-2025,
 ##############################
 
-land_anom_path = processed_data_path / f"land_anom_{flags.ref_years[0]}_{flags.ref_years[1]}.nc"
+if flags.use_1x1:
+    land_anom_path = (
+        processed_data_path
+        / f"land_anom_{flags.ref_years[0]}_{flags.ref_years[1]}_1x1.nc"
+    )
+else:
+    land_anom_path = (
+        processed_data_path / f"land_anom_{flags.ref_years[0]}_{flags.ref_years[1]}.nc"
+    )
 # skip calculating anomalies if precomputed, to save time.
 if land_anom_path.exists():
     print("loading existing land anomaly file")
-    era_land_all_anom = xr.open_dataset(land_anom_path).chunk({"time": -1, "lat": 30, "lon": 30})
+    era_land_all_anom = xr.open_dataset(land_anom_path).chunk(
+        {"time": -1, "lat": 30, "lon": 30}
+    )
 
 else:
-    era_land_all = era_land.sel(time=slice(str(flags.ref_years[0] - 1), str(flags.new_years[1])))
-    era_land_all_anom = (era_land_all.groupby("time.dayofyear") - ref_doy_climatology).drop_vars("dayofyear")
+    era_land_all = era_land.sel(
+        time=slice(str(flags.ref_years[0] - 1), str(flags.new_years[1]))
+    )
+    era_land_all_anom = (
+        era_land_all.groupby("time.dayofyear") - ref_doy_climatology
+    ).drop_vars("dayofyear")
 
     # ! uncomment to save output. this is is the data that's used to calculate heatwave metrics
     ahelpers.write_nc(
         era_land_all_anom,
-        f"processed_data/land_anom_{flags.ref_years[0]}_{flags.ref_years[1]}.nc",
+        land_anom_path,
     )
 
 era_land_all_anom["t2m_x"].attrs = {"units": "C"}  # hdp package needs units
@@ -180,10 +209,15 @@ era_land_all_anom["t2m_x"].attrs = {"units": "C"}  # hdp package needs units
 
 
 # calculate hw metrics if it doesn't already exist ----------
-hw_metrics_obs_path = processed_data_path / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc"
+hw_metrics_obs_path = (
+    processed_data_path
+    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_anom{flags.label}.nc"
+)
 if hw_metrics_obs_path.exists():
     print("loading existing heatwave metrics for obs")
-    metrics_all_land = xr.open_dataset(hw_metrics_obs_path).chunk({"lat": 30, "lon": 30})
+    metrics_all_land = xr.open_dataset(hw_metrics_obs_path).chunk(
+        {"lat": 30, "lon": 30}
+    )
 else:
     # calculate heatwave metrics on time period.
     measures_all = hdp.measure.format_standard_measures(
@@ -224,17 +258,24 @@ else:
 # note that we do this on the shifted, doy-anomaly removed ts.
 
 hw_metrics_meanshift_path = (
-    processed_data_path / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_anom{flags.label}.nc"
+    processed_data_path
+    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_anom{flags.label}.nc"
 )
 
 if hw_metrics_meanshift_path.exists():
     print("loading existing heatwave metrics for mean shift")
-    metrics_synth_land = xr.open_dataset(hw_metrics_meanshift_path).chunk({"lat": 30, "lon": 30})
+    metrics_synth_land = xr.open_dataset(hw_metrics_meanshift_path).chunk(
+        {"lat": 30, "lon": 30}
+    )
 else:
     # time period 2,
     # era_land_new = era_land.sel(time=slice(str(flags.new_years[0]), str(flags.new_years[1])))
-    era_land_ref_anom = era_land_all_anom.sel(time=slice(str(flags.ref_years[0] - 1), str(flags.ref_years[1])))
-    era_land_new_anom = era_land_all_anom.sel(time=slice(str(flags.new_years[0] - 1), str(flags.new_years[1])))
+    era_land_ref_anom = era_land_all_anom.sel(
+        time=slice(str(flags.ref_years[0] - 1), str(flags.ref_years[1]))
+    )
+    era_land_new_anom = era_land_all_anom.sel(
+        time=slice(str(flags.new_years[0] - 1), str(flags.new_years[1]))
+    )
 
     ## shifting the center for each grid cell.
     ## note: this is in anomaly space!! shifted, doy-anomaly removed.
@@ -275,12 +316,15 @@ else:
 # i.e. the "future" time period (1995-2025) is the same as 1960-1990 but shifted by 1deg
 #############
 hw_metrics_1deg_path = (
-    processed_data_path / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_1deg_anom{flags.label}.nc"
+    processed_data_path
+    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_1deg_anom{flags.label}.nc"
 )
 
 if hw_metrics_1deg_path.exists():
     print("loading existing heatwave metrics for 1deg shift")
-    metrics_synth_land_1deg = xr.open_dataset(hw_metrics_1deg_path).chunk({"lat": 30, "lon": 30})
+    metrics_synth_land_1deg = xr.open_dataset(hw_metrics_1deg_path).chunk(
+        {"lat": 30, "lon": 30}
+    )
 else:
     # update the "time" coordinate in the future to pretend it's the "future"
     # shifted by 1 degree.
@@ -310,12 +354,15 @@ else:
 #############
 
 hw_metrics_2deg_path = (
-    processed_data_path / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_2deg_anom{flags.label}.nc"
+    processed_data_path
+    / f"hw_metrics_{flags.ref_years[0]}_{flags.new_years[1]}_synth_2deg_anom{flags.label}.nc"
 )
 
 if hw_metrics_2deg_path.exists():
     print("loading existing heatwave metrics for 2deg shift")
-    metrics_synth_land_2deg = xr.open_dataset(hw_metrics_2deg_path).chunk({"lat": 30, "lon": 30})
+    metrics_synth_land_2deg = xr.open_dataset(hw_metrics_2deg_path).chunk(
+        {"lat": 30, "lon": 30}
+    )
 else:
     # update the "time" coordinate in the future to pretend it's the "future"
     # shift by 2 degrees
